@@ -1,0 +1,33 @@
+id: brocai
+registry: ../../Agent_system/config/registry.yaml
+authorized_specialists: []
+runtime_execution:
+  workspace_root: ..
+  allowed_read_paths:
+    - README.md
+    - docs/cahier_des_charges.md
+    - docs/mvp.md
+    - docs/architecture.md
+    - docs/wireframes.md
+    - docs/assets/wireframes
+    - docs/decisions
+    - tools/benchmark_gemini.py
+  allowed_write_paths:
+    - README.md
+    - docs/cahier_des_charges.md
+    - docs/mvp.md
+    - docs/architecture.md
+    - docs/wireframes.md
+    - docs/assets/wireframes
+    - docs/decisions
+    - tools/benchmark_gemini.py
+  allowed_tools:
+    - read_file
+    - write_file
+    - replace_text
+  limits:
+    max_tool_calls: 48
+    max_file_bytes: 1048576
+  commands: []
+  network_policy: deny_by_policy
+  secret_policy: do_not_inherit
