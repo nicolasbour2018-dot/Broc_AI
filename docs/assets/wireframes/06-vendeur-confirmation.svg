@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
+  <title id="title">Vendeur, annonce publiée</title><desc id="desc">Confirmation de publication avec accès à l’annonce et retour au mini-marché.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#222}.small{font-size:14px}.body{font-size:16px}.title{font-size:25px;font-weight:700}.button{font-size:17px;font-weight:700}.muted{fill:#666}.card{fill:#f3f3f3;stroke:#777;stroke-width:1.5}.dark{fill:#222}.white{fill:#fff}.line{stroke:#222;stroke-width:3;fill:none}</style>
+  <rect width="390" height="844" fill="#fff"/><rect x="16" y="16" width="358" height="56" rx="8" class="card"/><text x="32" y="50" class="title">Brocai</text>
+  <circle cx="195" cy="190" r="46" fill="#dedede" stroke="#777"/><path d="M174 190l14 14 27-31" class="line"/>
+  <text x="195" y="278" text-anchor="middle" class="title">Annonce publiée</text><text x="195" y="310" text-anchor="middle" class="body muted">Elle est maintenant visible au mini-marché.</text>
+  <rect x="24" y="358" width="342" height="126" rx="10" class="card"/><text x="46" y="398" class="body">Lampe de bureau articulée</text><text x="46" y="432" class="body">15 € · Stand B12</text><text x="46" y="460" class="small muted">Conservez votre objet avec votre numéro de stand.</text>
+  <rect x="24" y="524" width="342" height="52" rx="8" class="card"/><text x="195" y="557" text-anchor="middle" class="button">Ouvrir mon annonce</text>
+  <rect x="24" y="760" width="342" height="52" rx="8" class="dark"/><text x="195" y="793" text-anchor="middle" class="button" fill="#fff">Retour au mini-marché</text>
+</svg>

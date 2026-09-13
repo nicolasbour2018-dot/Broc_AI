@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
+  <title id="title">Assistant photo, limite de questions atteinte</title><desc id="desc">État expliquant que les trois questions de l’objet ont été utilisées et proposant un nouveau scan.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#222}.small{font-size:14px}.body{font-size:16px}.title{font-size:24px;font-weight:700}.button{font-size:17px;font-weight:700}.muted{fill:#666}.card{fill:#f3f3f3;stroke:#777;stroke-width:1.5}.dark{fill:#222}.white{fill:#fff}</style>
+  <rect width="390" height="844" fill="#fff"/><rect x="16" y="16" width="358" height="56" rx="8" class="card"/><text x="32" y="50" class="title">‹ Lampe articulée</text>
+  <rect x="24" y="108" width="342" height="106" rx="10" class="card"/><text x="44" y="146" class="title">3 questions utilisées</text><text x="44" y="178" class="body muted">La limite s’applique à cet objet.</text>
+  <rect x="24" y="246" width="342" height="226" rx="10" class="card"/><text x="44" y="286" class="button">Vos réponses restent visibles ici</text><path d="M44 316h260M44 350h220M44 384h248" stroke="#777" stroke-width="8"/><text x="44" y="434" class="small muted">Pour une nouvelle limite, changez d’objet.</text>
+  <rect x="24" y="510" width="342" height="52" rx="8" class="card"/><text x="195" y="543" text-anchor="middle" class="button">Retour à l’analyse</text>
+  <rect x="24" y="760" width="342" height="52" rx="8" class="dark"/><text x="195" y="793" text-anchor="middle" class="button" fill="#fff">Analyser un autre objet</text>
+</svg>

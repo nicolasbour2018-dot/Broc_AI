@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
+  <title id="title">Mini-marché, liste des annonces</title><desc id="desc">Liste mobile d’annonces avec prix, stand et recherche accessible.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#222}.small{font-size:13px}.body{font-size:16px}.title{font-size:23px;font-weight:700}.button{font-size:17px;font-weight:700}.muted{fill:#666}.card{fill:#f3f3f3;stroke:#777;stroke-width:1.5}.input{fill:#fff;stroke:#777;stroke-width:1.5}.dark{fill:#222}.white{fill:#fff}</style>
+  <rect width="390" height="844" fill="#fff"/><rect x="16" y="16" width="358" height="56" rx="8" class="card"/><text x="32" y="50" class="title">‹ Mini-marché</text>
+  <rect x="24" y="92" width="342" height="52" rx="8" class="input"/><text x="44" y="125" class="body muted">Rechercher un objet…</text><circle cx="333" cy="116" r="11" fill="none" stroke="#777" stroke-width="2"/><path d="M341 125l9 9" stroke="#777" stroke-width="2"/>
+  <text x="24" y="184" class="body">26 annonces près de vous</text>
+  <rect x="24" y="206" width="342" height="132" rx="8" class="card"/><rect x="40" y="222" width="96" height="96" rx="5" fill="#dedede"/><text x="154" y="250" class="button">Lampe articulée</text><text x="154" y="280" class="body">15 €</text><text x="154" y="308" class="body">Stand B12</text>
+  <rect x="24" y="354" width="342" height="132" rx="8" class="card"/><rect x="40" y="370" width="96" height="96" rx="5" fill="#dedede"/><text x="154" y="398" class="button">Vase en grès</text><text x="154" y="428" class="body">8 €</text><text x="154" y="456" class="body">Stand A04</text>
+  <rect x="24" y="502" width="342" height="132" rx="8" class="card"/><rect x="40" y="518" width="96" height="96" rx="5" fill="#dedede"/><text x="154" y="546" class="button">Jeu de société</text><text x="154" y="576" class="body">6 €</text><text x="154" y="604" class="body">Stand C07</text>
+  <rect x="24" y="760" width="342" height="52" rx="8" class="dark"/><text x="195" y="793" text-anchor="middle" class="button" fill="#fff">Rechercher</text>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
+  <title id="title">Assistant photo, trois questions</title><desc id="desc">Écran de questions sur un objet avec compteur visible et choix rapides.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#222}.small{font-size:13px}.body{font-size:16px}.title{font-size:22px;font-weight:700}.button{font-size:16px;font-weight:700}.muted{fill:#666}.card{fill:#f3f3f3;stroke:#777;stroke-width:1.5}.input{fill:#fff;stroke:#777;stroke-width:1.5}.dark{fill:#222}.white{fill:#fff}</style>
+  <rect width="390" height="844" fill="#fff"/><rect x="16" y="16" width="358" height="56" rx="8" class="card"/><text x="32" y="50" class="title">‹ Lampe articulée</text>
+  <rect x="24" y="92" width="342" height="54" rx="8" class="card"/><text x="44" y="125" class="body">Vos questions : 2 restantes</text><text x="292" y="125" class="small muted">● ● ○</text>
+  <text x="24" y="184" class="title">Que voulez-vous savoir ?</text><text x="24" y="212" class="small muted">Une question est liée à cet objet seulement.</text>
+  <rect x="24" y="242" width="342" height="58" rx="8" class="card"/><text x="44" y="278" class="button">Est-ce une bonne affaire ?</text>
+  <rect x="24" y="316" width="342" height="58" rx="8" class="card"/><text x="44" y="352" class="button">Raconte-m’en plus</text>
+  <rect x="24" y="390" width="342" height="58" rx="8" class="card"/><text x="44" y="426" class="button">Négocie pour moi</text>
+  <text x="24" y="492" class="small">Ou posez votre question</text><rect x="24" y="504" width="342" height="100" rx="8" class="input"/><text x="44" y="538" class="body muted">Écrire une question courte…</text>
+  <rect x="24" y="760" width="342" height="52" rx="8" class="dark"/><text x="195" y="793" text-anchor="middle" class="button" fill="#fff">Envoyer ma question</text>
+</svg>
