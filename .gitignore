@@ -1,3 +1,10 @@
 .DS_Store
 /.agent-system/observations/
 /.agent-system/benchmark/
+.env
+backend/.env
+backend/data/
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.py[cod]
