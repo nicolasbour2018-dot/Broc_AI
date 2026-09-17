@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
+  <title id="title">Vendeur, ajout de photo</title><desc id="desc">Écran mobile pour prendre ou choisir la photo de l’objet à vendre.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#222}.small{font-size:14px}.body{font-size:16px}.title{font-size:24px;font-weight:700}.button{font-size:17px;font-weight:700}.muted{fill:#666}.line{stroke:#777;stroke-width:1.5;fill:none}.card{fill:#f3f3f3;stroke:#777;stroke-width:1.5}.dark{fill:#222}.white{fill:#fff}</style>
+  <rect width="390" height="844" fill="#fff"/><rect x="16" y="16" width="358" height="56" rx="8" class="card"/><text x="32" y="50" class="title">‹ Je vends</text><text x="298" y="50" class="small muted">Étape 1/3</text>
+  <text x="24" y="118" class="title">Photographiez votre objet</text><text x="24" y="148" class="body muted">Une photo nette aide à préparer le brouillon.</text>
+  <rect x="24" y="184" width="342" height="282" rx="10" class="card" stroke-dasharray="6 5"/><rect x="141" y="270" width="108" height="74" rx="8" fill="#dedede" stroke="#777"/><circle cx="195" cy="307" r="20" fill="#fff" stroke="#777"/><path d="M158 270l16-20h42l16 20" class="line"/><text x="195" y="386" text-anchor="middle" class="body">Cadrez l’objet seul si possible</text><text x="195" y="412" text-anchor="middle" class="small muted">JPG, PNG ou caméra</text>
+  <rect x="24" y="496" width="342" height="52" rx="8" class="card"/><text x="195" y="529" text-anchor="middle" class="button">Choisir dans la galerie</text>
+  <rect x="24" y="760" width="342" height="52" rx="8" class="dark"/><text x="195" y="793" text-anchor="middle" class="button" fill="#fff">Prendre une photo</text>
+</svg>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="844" viewBox="0 0 390 844" role="img" aria-labelledby="title desc">
+  <title id="title">Vendeur, attente dans la file IA</title><desc id="desc">État d’attente après l’envoi de la photo, avec accès continu au mini-marché.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#222}.small{font-size:14px}.body{font-size:16px}.title{font-size:24px;font-weight:700}.button{font-size:17px;font-weight:700}.muted{fill:#666}.line{stroke:#777;stroke-width:2;fill:none}.card{fill:#f3f3f3;stroke:#777;stroke-width:1.5}.dark{fill:#222}.white{fill:#fff}</style>
+  <rect width="390" height="844" fill="#fff"/><rect x="16" y="16" width="358" height="56" rx="8" class="card"/><text x="32" y="50" class="title">‹ Je vends</text><text x="294" y="50" class="small muted">Analyse IA</text>
+  <text x="24" y="118" class="title">Votre analyse attend</text><text x="24" y="148" class="body muted">Votre photo est bien reçue.</text>
+  <rect x="24" y="184" width="342" height="204" rx="10" class="card"/><circle cx="195" cy="248" r="28" fill="#dedede" stroke="#777"/><path d="M195 228v20l14 9" class="line"/><text x="195" y="310" text-anchor="middle" class="button">En attente</text><text x="195" y="338" text-anchor="middle" class="body">2 demandes avant vous</text><text x="195" y="364" text-anchor="middle" class="small muted">Attente estimée : moins d’une minute</text>
+  <rect x="24" y="420" width="342" height="88" rx="8" class="card"/><text x="44" y="454" class="body">Vous pouvez continuer à naviguer.</text><text x="44" y="482" class="small muted">Nous vous ramènerons au brouillon prêt.</text>
+  <rect x="24" y="760" width="342" height="52" rx="8" class="dark"/><text x="195" y="793" text-anchor="middle" class="button" fill="#fff">Voir le mini-marché</text>
+</svg>
