@@ -1,10 +1,11 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, updateListing } from './api'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
+import Admin from './Admin'
 import { DEFAULT_CATEGORY, LISTING_CATEGORIES } from './categories'
 import type { ListingCategory } from './categories'
 import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
-type View = 'home' | 'seller' | 'market' | 'assistant'
+type View = 'home' | 'seller' | 'market' | 'assistant' | 'admin'
 type SellerMode = 'dashboard' | 'create' | 'edit'
 
 const SELLER_STAND_KEY = 'brocai-seller-stand'
@@ -587,8 +588,21 @@ function Assistant({ goHome }: { goHome: () => void }) {
 }
 
 export default function App() {
-  const [view, setView] = useState<View>('home')
+  const [view, setView] = useState<View>(window.location.pathname === '/admin' ? 'admin' : 'home')
+  const previousView = useRef<View | null>(null)
+
+  useEffect(() => {
+    if (view === 'admin') return
+    const previous = previousView.current
+    previousView.current = view
+    void (async () => {
+      await trackSessionStarted()
+      await trackEvent('nav_opened', { screen: view, previous_screen: previous })
+    })()
+  }, [view])
+
   const content = useMemo(() => {
+    if (view === 'admin') return <Admin goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => setView('market')} />
     if (view === 'market') return <Market goHome={() => setView('home')} />
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />

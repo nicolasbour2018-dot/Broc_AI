@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     ai_provider: str = "mock"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
+    admin_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
