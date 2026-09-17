@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, updateListing } from './api'
 import { DEFAULT_CATEGORY, LISTING_CATEGORIES } from './categories'
 import type { ListingCategory } from './categories'
-import type { AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
+import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 type View = 'home' | 'seller' | 'market' | 'assistant'
 type SellerMode = 'dashboard' | 'create' | 'edit'
@@ -28,6 +28,16 @@ const CONFIDENCE_LABELS: Record<SellerAnalysis['confidence'], string> = {
 
 function BackButton({ onClick }: { onClick: () => void }) {
   return <button className="back" onClick={onClick} type="button">← Accueil</button>
+}
+
+function queueMessage(progress: AiJobProgress | null, action = 'Analyse'): string {
+  if (!progress) return `${action} en cours…`
+  if (progress.status === 'queued') {
+    const position = progress.queue_position && progress.queue_position > 0 ? `Position ${progress.queue_position} dans la file` : 'En attente'
+    return `${position}${progress.wait_label ? ` · ${progress.wait_label}` : ''}`
+  }
+  if (progress.status === 'running') return `${action} en cours…`
+  return `${action} terminée`
 }
 
 function Home({ navigate }: { navigate: (view: View) => void }) {
@@ -64,6 +74,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
   const [preview, setPreview] = useState(false)
   const [published, setPublished] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(false)
+  const [aiProgress, setAiProgress] = useState<AiJobProgress | null>(null)
   const [error, setError] = useState('')
 
   async function loadSellerItems(stand: string) {
@@ -95,6 +106,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     setEditDraft(null)
     setPublished(null)
     setPreview(false)
+    setAiProgress(null)
     setSellerMode('dashboard')
   }
 
@@ -105,6 +117,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     setPublished(null)
     setPreview(false)
     setError('')
+    setAiProgress(null)
     setDraft({ ...EMPTY_DRAFT, stand_number: standNumber })
     setSellerMode('create')
   }
@@ -130,15 +143,16 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     setEditDraft(null)
     setPublished(null)
     setPreview(false)
+    setAiProgress(null)
     setSellerMode('dashboard')
     await loadSellerItems(standNumber)
   }
 
   async function choosePhoto(file?: File) {
     if (!file) return
-    setLoading(true); setError('')
+    setLoading(true); setError(''); setAiProgress(null)
     try {
-      const result = await analyzeSellerPhoto(file)
+      const result = await analyzeSellerPhoto(file, setAiProgress)
       setAnalysis(result)
       setDraft({
         image_key: result.image_key,
@@ -154,6 +168,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
       setError(err instanceof Error ? err.message : 'Analyse impossible.')
     } finally {
       setLoading(false)
+      setAiProgress(null)
     }
   }
 
@@ -288,8 +303,8 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
 
   return (
     <main className="screen"><button className="back" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Stand {standNumber} · Nouvelle annonce</p><h2>Photographie ton objet</h2><p className="lead small">Une photo suffit pour préparer le brouillon de l’annonce.</p>
-      <label className="photo-drop"><span>📷</span><strong>{loading ? 'Analyse en cours…' : 'Prendre une photo'}</strong><small>ou choisir une image dans la galerie</small><input disabled={loading} type="file" accept="image/*" capture="environment" onChange={e => choosePhoto(e.target.files?.[0])} /></label>
-      {loading && <div className="notice">Analyse en cours. Le mini‑marché reste accessible.</div>}
+      <label className="photo-drop"><span>📷</span><strong>{loading ? queueMessage(aiProgress) : 'Prendre une photo'}</strong><small>ou choisir une image dans la galerie</small><input disabled={loading} type="file" accept="image/*" capture="environment" onChange={e => choosePhoto(e.target.files?.[0])} /></label>
+      {loading && <div className="notice ai-queue-notice"><strong>{queueMessage(aiProgress)}</strong><span>Le mini‑marché reste accessible pendant l’attente.</span>{aiProgress?.status === 'queued' && aiProgress.queue_size > 0 && <small>{aiProgress.queue_size} demande{aiProgress.queue_size > 1 ? 's' : ''} actuellement en attente.</small>}</div>}
       {error && <p className="error">{error}</p>}
       <button className="secondary" onClick={openMarket}>Voir le mini‑marché</button>
     </main>
@@ -444,6 +459,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
   const [freeQuestion, setFreeQuestion] = useState('')
   const [answers, setAnswers] = useState<{ label: string; answer: string }[]>([])
   const [loading, setLoading] = useState(false)
+  const [aiProgress, setAiProgress] = useState<AiJobProgress | null>(null)
   const [error, setError] = useState('')
 
   function resetObject() {
@@ -453,6 +469,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
     setDisplayedPrice('')
     setFreeQuestion('')
     setAnswers([])
+    setAiProgress(null)
     setError('')
   }
 
@@ -463,23 +480,26 @@ function Assistant({ goHome }: { goHome: () => void }) {
     setAnalysis(null)
     setAnswers([])
     setError('')
+    setAiProgress(null)
     setLoading(true)
     try {
-      setAnalysis(await analyzeAssistantPhoto(file))
+      setAnalysis(await analyzeAssistantPhoto(file, setAiProgress))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analyse impossible.')
     } finally {
       setLoading(false)
+      setAiProgress(null)
     }
   }
 
   async function ask(type: AssistantQuestionType, label: string, question?: string) {
     if (!analysis || analysis.questions_remaining <= 0 || loading) return
     setLoading(true)
+    setAiProgress(null)
     setError('')
     const price = displayedPrice.trim() ? Number(displayedPrice) : undefined
     try {
-      const result = await askAssistantQuestion(analysis.scan_id, type, question, price)
+      const result = await askAssistantQuestion(analysis.scan_id, type, question, price, setAiProgress)
       setAnswers(current => [...current, { label, answer: result.answer }])
       setAnalysis({ ...analysis, questions_remaining: result.questions_remaining })
       if (type === 'free') setFreeQuestion('')
@@ -487,6 +507,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
       setError(err instanceof Error ? err.message : 'Réponse impossible.')
     } finally {
       setLoading(false)
+      setAiProgress(null)
     }
   }
 
@@ -505,12 +526,12 @@ function Assistant({ goHome }: { goHome: () => void }) {
       <p className="lead small">BrocAI te donne une fiche courte, puis tu disposes de trois questions sur cet objet.</p>
       <label className="photo-drop">
         <span>✦</span>
-        <strong>{loading ? 'Analyse en cours…' : 'Prendre une photo'}</strong>
+        <strong>{loading ? queueMessage(aiProgress) : 'Prendre une photo'}</strong>
         <small>ou choisir une image dans la galerie</small>
         <input disabled={loading} type="file" accept="image/*" capture="environment" onChange={e => choosePhoto(e.target.files?.[0])} />
       </label>
       {photoUrl && loading && <div className="assistant-photo-preview"><img src={photoUrl} alt="Objet en cours d’analyse" /></div>}
-      {loading && <div className="notice">Analyse en cours. La photo temporaire est supprimée du serveur dès que la fiche est créée.</div>}
+      {loading && <div className="notice ai-queue-notice"><strong>{queueMessage(aiProgress)}</strong><span>La photo temporaire est supprimée du serveur dès que la fiche est créée.</span>{aiProgress?.status === 'queued' && aiProgress.queue_size > 0 && <small>{aiProgress.queue_size} demande{aiProgress.queue_size > 1 ? 's' : ''} en attente.</small>}</div>}
       {error && <p className="error">{error}</p>}
     </main>
   )
@@ -557,6 +578,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
           <div className="empty assistant-limit"><strong>Tes trois questions sont utilisées.</strong><span>Tu peux photographier un autre objet pour repartir avec trois nouvelles questions.</span><button className="primary empty-action" type="button" onClick={resetObject}>Analyser un autre objet</button></div>
         )}
 
+        {loading && aiProgress && <div className="notice ai-queue-notice compact-queue"><strong>{queueMessage(aiProgress, 'Réponse')}</strong>{aiProgress.status === 'queued' && <span>Tu peux rester sur cette fiche pendant l’attente.</span>}</div>}
         {error && <p className="error">{error}</p>}
         {answers.length > 0 && <div className="assistant-answers">{answers.map((item, index) => <article key={`${item.label}-${index}`}><span>Question {index + 1}</span><h4>{item.label}</h4><p>{item.answer}</p></article>)}</div>}
       </section>

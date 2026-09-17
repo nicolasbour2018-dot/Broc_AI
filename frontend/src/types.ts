@@ -69,3 +69,21 @@ export interface AssistantQuestionResponse {
   answer: string
   questions_remaining: number
 }
+
+export type AiJobStatus = 'queued' | 'running' | 'success' | 'error' | 'timeout'
+
+export interface AiJobProgress {
+  id: string
+  feature: 'seller' | 'assistant' | 'assistant_question'
+  status: AiJobStatus
+  queue_position: number | null
+  queue_size: number
+  in_flight: number
+  wait_label: string | null
+  error_code: string | null
+  error_message: string | null
+}
+
+export interface AiJob<T> extends AiJobProgress {
+  result: T | null
+}

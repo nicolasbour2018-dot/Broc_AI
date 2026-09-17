@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -8,6 +8,23 @@ from .categories import ListingCategory
 
 
 Confidence = Literal["low", "medium", "high"]
+
+
+AiJobStatus = Literal["queued", "running", "success", "error", "timeout"]
+
+
+class AiJobOut(BaseModel):
+    id: str
+    feature: Literal["seller", "assistant", "assistant_question"]
+    status: AiJobStatus
+    queue_position: int | None = None
+    queue_size: int = 0
+    in_flight: int = 0
+    wait_label: str | None = None
+    result: dict[str, Any] | None = None
+    error_code: str | None = None
+    error_message: str | None = None
+
 
 
 class PriceRange(BaseModel):

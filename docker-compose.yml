@@ -23,6 +23,10 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-mock}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      MAX_AI_IN_FLIGHT: ${MAX_AI_IN_FLIGHT:-20}
+      AI_JOB_TIMEOUT_SECONDS: ${AI_JOB_TIMEOUT_SECONDS:-60}
+      AI_WORKER_POLL_MS: ${AI_WORKER_POLL_MS:-250}
+      AI_JOB_RETENTION_HOURS: ${AI_JOB_RETENTION_HOURS:-12}
     depends_on:
       postgres:
         condition: service_healthy

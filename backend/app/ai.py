@@ -1,3 +1,4 @@
+import os
 import json
 from pathlib import Path
 from typing import Literal, Protocol
@@ -114,7 +115,7 @@ class GeminiVisionProvider:
 
         from google import genai
 
-        self.client = genai.Client(api_key=settings.gemini_api_key)
+        self.client = genai.Client(api_key=settings.gemini_api_key, http_options={"timeout": max(10, min(300, int(os.getenv("AI_JOB_TIMEOUT_SECONDS", "60")))) * 1000})
 
     @staticmethod
     def _image_part(image_key: str):

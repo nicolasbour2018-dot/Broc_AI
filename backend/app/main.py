@@ -1,41 +1,40 @@
 from contextlib import asynccontextmanager
-from time import perf_counter
-
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.concurrency import run_in_threadpool
-from sqlalchemy import or_, select, text
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
-from .ai import vision_provider
+from .ai_queue import ACTIVE_STATUSES, ai_queue
 from .categories import ListingCategory, normalize_category
 from .config import settings
 from .db import engine, get_db, init_db
-from .models import AssistantScan, Event, Listing, utcnow
+from .models import AiJob, AssistantScan, Event, Listing, utcnow
 from .schemas import (
-    AssistantObjectAnalysis,
-    AssistantQuestionOut,
+    AiJobOut,
     AssistantQuestionRequest,
-    AssistantScanOut,
     HealthOut,
     ListingCreate,
     ListingOut,
     ListingStatusUpdate,
     ListingUpdate,
-    SellerAnalysis,
 )
-from .storage import delete_image, image_exists, save_image
+from .storage import image_exists, save_image
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     init_db()
-    yield
+    ai_queue.cleanup_old_jobs()
+    await ai_queue.start()
+    try:
+        yield
+    finally:
+        await ai_queue.stop()
 
 
-app = FastAPI(title=settings.app_name, version="0.4.0", lifespan=lifespan)
+app = FastAPI(title=settings.app_name, version="0.5.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
@@ -52,6 +51,42 @@ def session_id(value: str | None) -> str:
 
 def emit_event(db: Session, sid: str, name: str, properties: dict | None = None) -> None:
     db.add(Event(session_id=sid, event_name=name, properties=properties or {}))
+
+
+def ai_job_out(db: Session, job: AiJob) -> AiJobOut:
+    snapshot = ai_queue.status_snapshot(db, job)
+    return AiJobOut(
+        id=job.id,
+        feature=job.feature,
+        status=job.status,
+        result=job.result,
+        error_code=job.error_code,
+        error_message=job.error_message,
+        **snapshot,
+    )
+
+
+def enqueue_ai_job(
+    db: Session,
+    sid: str,
+    feature: str,
+    payload: dict,
+    *,
+    related_id: str | None = None,
+) -> AiJobOut:
+    job = AiJob(
+        session_id=sid,
+        feature=feature,
+        related_id=related_id,
+        status="queued",
+        payload=payload,
+    )
+    db.add(job)
+    db.flush()
+    emit_event(db, sid, "ai_analysis_queued", {"feature": feature, "job_id": job.id})
+    db.commit()
+    db.refresh(job)
+    return ai_job_out(db, job)
 
 
 def listing_out(listing: Listing) -> ListingOut:
@@ -80,58 +115,46 @@ def health() -> HealthOut:
         return HealthOut(status="degraded", database="error")
 
 
-@app.post("/api/assistant/analyze", response_model=AssistantScanOut)
+@app.get("/api/ai/jobs/{job_id}", response_model=AiJobOut)
+def get_ai_job(
+    job_id: str,
+    x_session_id: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> AiJobOut:
+    sid = session_id(x_session_id)
+    job = db.get(AiJob, job_id)
+    if job is None or job.session_id != sid:
+        raise HTTPException(status_code=404, detail="Tâche d’analyse introuvable pour cette session.")
+    return ai_job_out(db, job)
+
+
+@app.post("/api/assistant/analyze", response_model=AiJobOut, status_code=status.HTTP_202_ACCEPTED)
 async def analyze_object_photo(
     photo: UploadFile = File(...),
     x_session_id: str | None = Header(default=None),
     db: Session = Depends(get_db),
-) -> AssistantScanOut:
+) -> AiJobOut:
     sid = session_id(x_session_id)
-    started = perf_counter()
     image_key = await save_image(photo)
-    emit_event(db, sid, "ai_analysis_started", {"feature": "assistant", "queue_position": 0})
-    try:
-        analysis = await run_in_threadpool(vision_provider.analyze_object, image_key)
-    except Exception as exc:
-        emit_event(db, sid, "error_shown", {"feature": "assistant_analysis", "code": "analysis_failed"})
-        db.commit()
-        raise HTTPException(status_code=502, detail="L'analyse de cet objet n'est pas disponible pour le moment.") from exc
-    finally:
-        delete_image(image_key)
-
-    scan = AssistantScan(
-        session_id=sid,
-        analysis=analysis.model_dump(mode="json"),
-        question_count=0,
-    )
-    db.add(scan)
-    emit_event(
+    return enqueue_ai_job(
         db,
         sid,
-        "object_scan_completed",
-        {
-            "category": analysis.category.value,
-            "confidence": analysis.confidence,
-            "latency_ms": round((perf_counter() - started) * 1000),
-            "mode": analysis.analysis_mode,
-        },
-    )
-    db.commit()
-    db.refresh(scan)
-    return AssistantScanOut(
-        **analysis.model_dump(),
-        scan_id=scan.id,
-        questions_remaining=3,
+        "assistant",
+        {"image_key": image_key, "content_type": photo.content_type},
     )
 
 
-@app.post("/api/assistant/scans/{scan_id}/questions", response_model=AssistantQuestionOut)
-async def ask_object_question(
+@app.post(
+    "/api/assistant/scans/{scan_id}/questions",
+    response_model=AiJobOut,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def ask_object_question(
     scan_id: str,
     payload: AssistantQuestionRequest,
     x_session_id: str | None = Header(default=None),
     db: Session = Depends(get_db),
-) -> AssistantQuestionOut:
+) -> AiJobOut:
     sid = session_id(x_session_id)
     scan = db.scalar(
         select(AssistantScan)
@@ -140,71 +163,49 @@ async def ask_object_question(
     )
     if scan is None:
         raise HTTPException(status_code=404, detail="Analyse introuvable pour cette session.")
-    if scan.question_count >= 3:
-        raise HTTPException(status_code=409, detail="Les trois questions pour cet objet ont déjà été utilisées.")
 
-    analysis = AssistantObjectAnalysis.model_validate(scan.analysis)
-    try:
-        answer = await run_in_threadpool(
-            vision_provider.answer_object_question,
-            analysis,
-            payload.question_type,
-            payload.question,
-            payload.displayed_price_eur,
+    pending = int(
+        db.scalar(
+            select(func.count(AiJob.id)).where(
+                AiJob.feature == "assistant_question",
+                AiJob.related_id == scan_id,
+                AiJob.status.in_(ACTIVE_STATUSES),
+            )
         )
-    except Exception as exc:
-        emit_event(db, sid, "error_shown", {"feature": "assistant_question", "code": "question_failed"})
-        db.commit()
-        raise HTTPException(status_code=502, detail="La réponse n'est pas disponible pour le moment.") from exc
+        or 0
+    )
+    if scan.question_count + pending >= 3:
+        raise HTTPException(status_code=409, detail="Les trois questions pour cet objet ont déjà été utilisées ou sont en cours.")
 
-    scan.question_count += 1
-    remaining = max(0, 3 - scan.question_count)
-    emit_event(
+    return enqueue_ai_job(
         db,
         sid,
-        "object_chat_question",
+        "assistant_question",
         {
+            "scan_id": scan_id,
             "question_type": payload.question_type,
-            "question_index": scan.question_count,
-            "displayed_price_provided": payload.displayed_price_eur is not None,
+            "question": payload.question,
+            "displayed_price_eur": payload.displayed_price_eur,
         },
+        related_id=scan_id,
     )
-    db.commit()
-    return AssistantQuestionOut(answer=answer, questions_remaining=remaining)
 
 
-@app.post("/api/seller/analyze", response_model=SellerAnalysis)
+@app.post("/api/seller/analyze", response_model=AiJobOut, status_code=status.HTTP_202_ACCEPTED)
 async def analyze_seller_photo(
     photo: UploadFile = File(...),
     x_session_id: str | None = Header(default=None),
     db: Session = Depends(get_db),
-) -> SellerAnalysis:
+) -> AiJobOut:
     sid = session_id(x_session_id)
-    started = perf_counter()
     image_key = await save_image(photo)
     emit_event(db, sid, "seller_photo_submitted", {"content_type": photo.content_type})
-    emit_event(db, sid, "ai_analysis_started", {"feature": "seller", "queue_position": 0})
-    try:
-        analysis = await run_in_threadpool(vision_provider.analyze_for_listing, image_key, photo.filename)
-    except Exception as exc:
-        emit_event(db, sid, "error_shown", {"feature": "seller_analysis", "code": "analysis_failed"})
-        db.commit()
-        raise HTTPException(status_code=502, detail="L'analyse n'est pas disponible pour le moment.") from exc
-
-    emit_event(
+    return enqueue_ai_job(
         db,
         sid,
-        "ai_analysis_completed",
-        {
-            "feature": "seller",
-            "success": True,
-            "latency_ms": round((perf_counter() - started) * 1000),
-            "confidence": analysis.confidence,
-            "mode": analysis.analysis_mode,
-        },
+        "seller",
+        {"image_key": image_key, "filename": photo.filename, "content_type": photo.content_type},
     )
-    db.commit()
-    return analysis
 
 
 @app.get("/api/seller/listings", response_model=list[ListingOut])

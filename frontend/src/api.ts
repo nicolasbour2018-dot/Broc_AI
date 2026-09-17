@@ -1,5 +1,5 @@
 import type { ListingCategory } from './categories'
-import type { Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
+import type { AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 const SESSION_KEY = 'brocai-session-id'
 
@@ -38,7 +38,42 @@ async function parseError(response: Response): Promise<string> {
   }
 }
 
-export async function analyzeSellerPhoto(file: File): Promise<SellerAnalysis> {
+type ProgressCallback = (progress: AiJobProgress) => void
+
+const POLL_INTERVAL_MS = 1200
+
+async function fetchAiJob<T>(jobId: string): Promise<AiJob<T>> {
+  const response = await fetch(`/api/ai/jobs/${encodeURIComponent(jobId)}`, {
+    headers: { 'X-Session-ID': getSessionId() }
+  })
+  if (!response.ok) throw new Error(await parseError(response))
+  return response.json() as Promise<AiJob<T>>
+}
+
+async function waitForAiJob<T>(initial: AiJob<T>, onProgress?: ProgressCallback): Promise<T> {
+  let job = initial
+  onProgress?.(job)
+
+  let transientFailures = 0
+  while (job.status === 'queued' || job.status === 'running') {
+    await new Promise(resolve => window.setTimeout(resolve, POLL_INTERVAL_MS))
+    try {
+      job = await fetchAiJob<T>(job.id)
+      transientFailures = 0
+      onProgress?.(job)
+    } catch (error) {
+      transientFailures += 1
+      if (transientFailures >= 8) throw error
+    }
+  }
+
+  if (job.status !== 'success' || !job.result) {
+    throw new Error(job.error_message || 'L’analyse n’est pas disponible pour le moment.')
+  }
+  return job.result
+}
+
+export async function analyzeSellerPhoto(file: File, onProgress?: ProgressCallback): Promise<SellerAnalysis> {
   const body = new FormData()
   body.append('photo', file)
   const response = await fetch('/api/seller/analyze', {
@@ -47,7 +82,8 @@ export async function analyzeSellerPhoto(file: File): Promise<SellerAnalysis> {
     body
   })
   if (!response.ok) throw new Error(await parseError(response))
-  return response.json() as Promise<SellerAnalysis>
+  const job = await response.json() as AiJob<SellerAnalysis>
+  return waitForAiJob(job, onProgress)
 }
 
 export async function publishListing(draft: ListingDraft): Promise<Listing> {
@@ -124,7 +160,7 @@ export async function setListingSold(listingId: string, standNumber: string, sol
   return response.json() as Promise<Listing>
 }
 
-export async function analyzeAssistantPhoto(file: File): Promise<import('./types').AssistantAnalysis> {
+export async function analyzeAssistantPhoto(file: File, onProgress?: ProgressCallback): Promise<AssistantAnalysis> {
   const body = new FormData()
   body.append('photo', file)
   const response = await fetch('/api/assistant/analyze', {
@@ -133,15 +169,17 @@ export async function analyzeAssistantPhoto(file: File): Promise<import('./types
     body
   })
   if (!response.ok) throw new Error(await parseError(response))
-  return response.json() as Promise<import('./types').AssistantAnalysis>
+  const job = await response.json() as AiJob<AssistantAnalysis>
+  return waitForAiJob(job, onProgress)
 }
 
 export async function askAssistantQuestion(
   scanId: string,
-  questionType: import('./types').AssistantQuestionType,
+  questionType: AssistantQuestionType,
   question?: string,
-  displayedPriceEur?: number
-): Promise<import('./types').AssistantQuestionResponse> {
+  displayedPriceEur?: number,
+  onProgress?: ProgressCallback
+): Promise<AssistantQuestionResponse> {
   const response = await fetch(`/api/assistant/scans/${encodeURIComponent(scanId)}/questions`, {
     method: 'POST',
     headers: {
@@ -155,5 +193,6 @@ export async function askAssistantQuestion(
     })
   })
   if (!response.ok) throw new Error(await parseError(response))
-  return response.json() as Promise<import('./types').AssistantQuestionResponse>
+  const job = await response.json() as AiJob<AssistantQuestionResponse>
+  return waitForAiJob(job, onProgress)
 }

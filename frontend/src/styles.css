@@ -161,3 +161,21 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 
 .final-fun-line { margin-top: 10px; margin-bottom: 0; }
 .market-fun-line { margin: 10px 0 14px; font-size: .95rem; }
+
+.ai-queue-notice {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ai-queue-notice strong {
+  font-size: 0.98rem;
+}
+
+.ai-queue-notice span,
+.ai-queue-notice small {
+  display: block;
+}
+
+.compact-queue {
+  margin-top: 1rem;
+}
