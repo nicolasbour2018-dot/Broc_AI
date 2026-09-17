@@ -87,3 +87,49 @@ export interface AiJobProgress {
 export interface AiJob<T> extends AiJobProgress {
   result: T | null
 }
+
+export interface AdminMetrics {
+  generated_at: string
+  service: { status: string; database: string }
+  queue: { queued: number; running: number; max_in_flight: number }
+  ai: {
+    total_calls: number
+    last_hour_calls: number
+    success: number
+    error: number
+    timeout: number
+    recent_sample_size: number
+    average_latency_ms: number | null
+    average_queue_wait_ms: number | null
+    last_hour_error_rate_percent: number
+  }
+  product: {
+    sessions: number
+    publications: number
+    listings_total: number
+    listings_active: number
+    searches: number
+    listing_views: number
+    assistant_scans: number
+    assistant_questions: number
+    errors_shown: number
+  }
+  catalogue: { average_latency_ms: number | null; recent_sample_size: number }
+  system: {
+    cpu_count: number
+    load_1m: number | null
+    load_percent_of_capacity: number | null
+    memory_used_mb: number | null
+    memory_total_mb: number | null
+    memory_usage_percent: number | null
+    process_rss_mb: number | null
+  }
+  recent_jobs: Array<{
+    id: string
+    feature: string
+    status: AiJobStatus
+    duration_ms: number | null
+    queue_wait_ms: number | null
+    completed_at: string | null
+  }>
+}

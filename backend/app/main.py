@@ -20,6 +20,7 @@ from .schemas import (
     ListingUpdate,
 )
 from .storage import image_exists, save_image
+from .telemetry import router as telemetry_router
 
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/media", StaticFiles(directory=settings.upload_dir, check_dir=False), name="media")
+app.include_router(telemetry_router)
 
 
 def session_id(value: str | None) -> str:

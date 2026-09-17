@@ -1,7 +1,8 @@
 import type { ListingCategory } from './categories'
-import type { AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
+import type { AdminMetrics, AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 const SESSION_KEY = 'brocai-session-id'
+const SESSION_STARTED_KEY = 'brocai-session-started'
 
 function createSessionId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -21,20 +22,58 @@ function createSessionId(): string {
 }
 
 function getSessionId(): string {
-  let value = localStorage.getItem(SESSION_KEY)
+  let value = sessionStorage.getItem(SESSION_KEY)
   if (!value) {
     value = createSessionId()
-    localStorage.setItem(SESSION_KEY, value)
+    sessionStorage.setItem(SESSION_KEY, value)
   }
   return value
 }
 
+export async function trackEvent(
+  eventName: 'session_started' | 'nav_opened' | 'catalogue_loaded' | 'error_shown',
+  properties: Record<string, string | number | boolean | null> = {}
+): Promise<void> {
+  try {
+    await fetch('/api/events', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': getSessionId()
+      },
+      body: JSON.stringify({ event_name: eventName, properties })
+    })
+  } catch {
+    // Analytics must never break a product flow.
+  }
+}
+
+export async function trackSessionStarted(): Promise<void> {
+  if (sessionStorage.getItem(SESSION_STARTED_KEY)) return
+  sessionStorage.setItem(SESSION_STARTED_KEY, '1')
+  await trackEvent('session_started')
+}
+
 async function parseError(response: Response): Promise<string> {
+  void trackEvent('error_shown', {
+    status: response.status,
+    path: response.url ? new URL(response.url).pathname : 'unknown'
+  })
   try {
     const payload = await response.json() as { detail?: string }
     return payload.detail || 'Une erreur est survenue.'
   } catch {
     return 'Une erreur est survenue.'
+  }
+}
+
+
+async function parseAdminError(response: Response): Promise<string> {
+  try {
+    const payload = await response.json() as { detail?: string }
+    return payload.detail || 'Accès admin impossible.'
+  } catch {
+    return 'Accès admin impossible.'
   }
 }
 
@@ -123,12 +162,19 @@ export async function updateListing(listingId: string, draft: ListingEditDraft):
 }
 
 export async function fetchListings(query = '', category?: ListingCategory): Promise<Listing[]> {
+  const started = performance.now()
   const url = new URL('/api/listings', window.location.origin)
   if (query.trim()) url.searchParams.set('q', query.trim())
   if (category) url.searchParams.set('category', category)
   const response = await fetch(url, { headers: { 'X-Session-ID': getSessionId() } })
   if (!response.ok) throw new Error(await parseError(response))
-  return response.json() as Promise<Listing[]>
+  const rows = await response.json() as Listing[]
+  void trackEvent('catalogue_loaded', {
+    latency_ms: Math.round(performance.now() - started),
+    filtered: Boolean(query.trim() || category),
+    results: rows.length
+  })
+  return rows
 }
 
 export async function fetchListing(listingId: string): Promise<Listing> {
@@ -195,4 +241,35 @@ export async function askAssistantQuestion(
   if (!response.ok) throw new Error(await parseError(response))
   const job = await response.json() as AiJob<AssistantQuestionResponse>
   return waitForAiJob(job, onProgress)
+}
+
+
+export async function fetchAdminMetrics(token: string): Promise<AdminMetrics> {
+  const response = await fetch('/api/admin/metrics', {
+    headers: { 'X-Admin-Token': token }
+  })
+  if (!response.ok) throw new Error(await parseAdminError(response))
+  return response.json() as Promise<AdminMetrics>
+}
+
+export async function downloadAdminExport(
+  token: string,
+  dataset: 'events' | 'ai_jobs' | 'listings',
+  format: 'csv' | 'json'
+): Promise<void> {
+  const url = new URL('/api/admin/export', window.location.origin)
+  url.searchParams.set('dataset', dataset)
+  url.searchParams.set('format', format)
+  const response = await fetch(url, { headers: { 'X-Admin-Token': token } })
+  if (!response.ok) throw new Error(await parseAdminError(response))
+
+  const blob = await response.blob()
+  const href = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = href
+  anchor.download = `brocai-${dataset}-${new Date().toISOString().slice(0, 10)}.${format}`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(href)
 }

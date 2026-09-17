@@ -1,0 +1,30 @@
+.admin-screen { padding-bottom: 48px; }
+.admin-login { display: grid; gap: 16px; margin-top: 24px; }
+.admin-login label { display: grid; gap: 8px; font-weight: 700; }
+.admin-login input { width: 100%; box-sizing: border-box; }
+.admin-topbar, .admin-section-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.admin-topbar h2, .admin-section-title h3 { margin-top: 4px; }
+.admin-top-actions { display: flex; align-items: center; gap: 10px; }
+.admin-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 24px 0; }
+.admin-card { display: grid; gap: 5px; padding: 16px; border: 1px solid #dedbd4; border-radius: 16px; background: #fff; }
+.admin-card > span { color: #69645c; font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.admin-card strong { font-size: 1.65rem; line-height: 1.1; }
+.admin-card small { color: #69645c; line-height: 1.35; }
+.admin-ok { color: #2f6b45; }
+.admin-section { margin-top: 28px; padding-top: 22px; border-top: 1px solid #dedbd4; }
+.admin-job-list { display: grid; gap: 8px; margin-top: 14px; }
+.admin-job { display: grid; grid-template-columns: 1.2fr .8fr .8fr 1fr; gap: 10px; align-items: center; padding: 11px 12px; border-radius: 12px; background: #f4f2ed; font-size: .9rem; }
+.admin-export-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.admin-export-grid > div { display: grid; gap: 10px; padding: 14px; border: 1px solid #dedbd4; border-radius: 14px; }
+.admin-export-grid > div > div { display: flex; gap: 8px; }
+.admin-generated { margin-top: 20px; color: #777168; font-size: .82rem; text-align: right; }
+@media (max-width: 760px) {
+  .admin-grid, .admin-export-grid { grid-template-columns: 1fr 1fr; }
+  .admin-job { grid-template-columns: 1fr 1fr; }
+  .admin-topbar { align-items: stretch; flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .admin-grid, .admin-export-grid { grid-template-columns: 1fr; }
+  .admin-top-actions { justify-content: space-between; }
+  .admin-section-title { display: block; }
+}
