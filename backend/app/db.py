@@ -29,12 +29,34 @@ def _apply_lightweight_migrations() -> None:
         return
 
     columns = {column["name"] for column in inspector.get_columns("listings")}
-    if "sold_at" in columns:
-        return
+    statements: list[str] = []
 
-    sold_at_type = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
+    if "sold_at" not in columns:
+        sold_at_type = "TIMESTAMP WITH TIME ZONE" if engine.dialect.name == "postgresql" else "DATETIME"
+        statements.append(f"ALTER TABLE listings ADD COLUMN sold_at {sold_at_type} NULL")
+
+    if "fun_line" not in columns:
+        statements.append("ALTER TABLE listings ADD COLUMN fun_line VARCHAR(180) NULL")
+
+    if statements:
+        with engine.begin() as connection:
+            for statement in statements:
+                connection.execute(text(statement))
+
+
+def _normalize_legacy_categories() -> None:
+    """Convert pre-taxonomy category labels to the current closed list once at startup."""
+    from .categories import normalize_category
+
     with engine.begin() as connection:
-        connection.execute(text(f"ALTER TABLE listings ADD COLUMN sold_at {sold_at_type} NULL"))
+        rows = connection.execute(text("SELECT id, category FROM listings")).mappings().all()
+        for row in rows:
+            normalized = normalize_category(row["category"]).value
+            if row["category"] != normalized:
+                connection.execute(
+                    text("UPDATE listings SET category = :category WHERE id = :id"),
+                    {"category": normalized, "id": row["id"]},
+                )
 
 
 def init_db() -> None:
@@ -42,3 +64,4 @@ def init_db() -> None:
 
     Base.metadata.create_all(bind=engine)
     _apply_lightweight_migrations()
+    _normalize_legacy_categories()

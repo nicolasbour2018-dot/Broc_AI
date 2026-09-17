@@ -44,3 +44,13 @@ def image_exists(image_key: str) -> bool:
     if Path(image_key).name != image_key:
         return False
     return (settings.upload_dir / image_key).is_file()
+
+
+def delete_image(image_key: str) -> None:
+    if Path(image_key).name != image_key:
+        return
+    path = settings.upload_dir / image_key
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass

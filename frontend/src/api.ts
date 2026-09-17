@@ -1,11 +1,29 @@
+import type { ListingCategory } from './categories'
 import type { Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 const SESSION_KEY = 'brocai-session-id'
 
+function createSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16)
+    crypto.getRandomValues(bytes)
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+    const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0'))
+    return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`
+  }
+
+  return `brocai-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+}
+
 function getSessionId(): string {
   let value = localStorage.getItem(SESSION_KEY)
   if (!value) {
-    value = crypto.randomUUID()
+    value = createSessionId()
     localStorage.setItem(SESSION_KEY, value)
   }
   return value
@@ -41,7 +59,7 @@ export async function publishListing(draft: ListingDraft): Promise<Listing> {
     },
     body: JSON.stringify({
       ...draft,
-      category: draft.category || null,
+      category: draft.category,
       seller_alias: draft.seller_alias || null,
       price_eur: Number(draft.price_eur)
     })
@@ -59,7 +77,7 @@ export async function updateListing(listingId: string, draft: ListingEditDraft):
     },
     body: JSON.stringify({
       ...draft,
-      category: draft.category || null,
+      category: draft.category,
       seller_alias: draft.seller_alias || null,
       price_eur: Number(draft.price_eur)
     })
@@ -68,12 +86,21 @@ export async function updateListing(listingId: string, draft: ListingEditDraft):
   return response.json() as Promise<Listing>
 }
 
-export async function fetchListings(query = ''): Promise<Listing[]> {
+export async function fetchListings(query = '', category?: ListingCategory): Promise<Listing[]> {
   const url = new URL('/api/listings', window.location.origin)
   if (query.trim()) url.searchParams.set('q', query.trim())
+  if (category) url.searchParams.set('category', category)
   const response = await fetch(url, { headers: { 'X-Session-ID': getSessionId() } })
   if (!response.ok) throw new Error(await parseError(response))
   return response.json() as Promise<Listing[]>
+}
+
+export async function fetchListing(listingId: string): Promise<Listing> {
+  const response = await fetch(`/api/listings/${encodeURIComponent(listingId)}`, {
+    headers: { 'X-Session-ID': getSessionId() }
+  })
+  if (!response.ok) throw new Error(await parseError(response))
+  return response.json() as Promise<Listing>
 }
 
 export async function fetchSellerListings(standNumber: string): Promise<Listing[]> {
@@ -95,4 +122,38 @@ export async function setListingSold(listingId: string, standNumber: string, sol
   })
   if (!response.ok) throw new Error(await parseError(response))
   return response.json() as Promise<Listing>
+}
+
+export async function analyzeAssistantPhoto(file: File): Promise<import('./types').AssistantAnalysis> {
+  const body = new FormData()
+  body.append('photo', file)
+  const response = await fetch('/api/assistant/analyze', {
+    method: 'POST',
+    headers: { 'X-Session-ID': getSessionId() },
+    body
+  })
+  if (!response.ok) throw new Error(await parseError(response))
+  return response.json() as Promise<import('./types').AssistantAnalysis>
+}
+
+export async function askAssistantQuestion(
+  scanId: string,
+  questionType: import('./types').AssistantQuestionType,
+  question?: string,
+  displayedPriceEur?: number
+): Promise<import('./types').AssistantQuestionResponse> {
+  const response = await fetch(`/api/assistant/scans/${encodeURIComponent(scanId)}/questions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Session-ID': getSessionId()
+    },
+    body: JSON.stringify({
+      question_type: questionType,
+      question: question?.trim() || null,
+      displayed_price_eur: Number.isFinite(displayedPriceEur) ? displayedPriceEur : null
+    })
+  })
+  if (!response.ok) throw new Error(await parseError(response))
+  return response.json() as Promise<import('./types').AssistantQuestionResponse>
 }

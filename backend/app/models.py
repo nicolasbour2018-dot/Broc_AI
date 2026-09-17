@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import DateTime, JSON, Numeric, String, Text
+from sqlalchemy import DateTime, Integer, JSON, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -19,6 +19,7 @@ class Listing(Base):
     image_key: Mapped[str] = mapped_column(String(255), nullable=False)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    fun_line: Mapped[str | None] = mapped_column(String(180), nullable=True)
     category: Mapped[str | None] = mapped_column(String(80), nullable=True)
     price_eur: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     stand_number: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
@@ -34,4 +35,14 @@ class Event(Base):
     session_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     event_name: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     properties: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class AssistantScan(Base):
+    __tablename__ = "assistant_scans"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    session_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    analysis: Mapped[dict] = mapped_column(JSON, nullable=False)
+    question_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
