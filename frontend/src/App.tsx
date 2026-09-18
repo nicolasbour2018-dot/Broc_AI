@@ -1,11 +1,12 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
 import Admin from './Admin'
+import Showroom from './Showroom'
 import { DEFAULT_CATEGORY, LISTING_CATEGORIES } from './categories'
 import type { ListingCategory } from './categories'
 import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
-type View = 'home' | 'seller' | 'market' | 'assistant' | 'admin'
+type View = 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom'
 type SellerMode = 'dashboard' | 'create' | 'edit'
 
 const SELLER_STAND_KEY = 'brocai-seller-stand'
@@ -588,7 +589,11 @@ function Assistant({ goHome }: { goHome: () => void }) {
 }
 
 export default function App() {
-  const [view, setView] = useState<View>(window.location.pathname === '/admin' ? 'admin' : 'home')
+  const [view, setView] = useState<View>(
+    window.location.pathname === '/admin'
+      ? 'admin'
+      : window.location.pathname === '/showroom' ? 'showroom' : 'home'
+  )
   const previousView = useRef<View | null>(null)
 
   useEffect(() => {
@@ -603,6 +608,7 @@ export default function App() {
 
   const content = useMemo(() => {
     if (view === 'admin') return <Admin goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
+    if (view === 'showroom') return <Showroom exitShowroom={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => setView('market')} />
     if (view === 'market') return <Market goHome={() => setView('home')} />
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />

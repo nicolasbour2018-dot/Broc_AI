@@ -31,7 +31,18 @@ def _max_ai_in_flight() -> int:
         value = 20
     return max(1, min(100, value))
 
-ClientEventName = Literal["session_started", "nav_opened", "catalogue_loaded", "error_shown"]
+ClientEventName = Literal[
+    "session_started",
+    "nav_opened",
+    "catalogue_loaded",
+    "error_shown",
+    "demo_opened",
+    "feature_clicked",
+    "chat_started",
+    "message_count",
+    "demo_duration_s",
+    "demo_reset",
+]
 ClientEventValue = str | int | float | bool | None
 ExportDataset = Literal["events", "ai_jobs", "listings"]
 ExportFormat = Literal["csv", "json"]
