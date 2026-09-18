@@ -1,0 +1,135 @@
+[
+  {
+    "case_id": "seller-common-001",
+    "task": "seller",
+    "image_paths": [
+      ".agent-system/benchmark/assets/common-object.jpg"
+    ],
+    "profile": "common_object",
+    "notes": "Objet courant et identifiable. Mesurer titre, description, catégorie, prix de brocante et prudence.",
+    "evaluation_focus": [
+      "identification",
+      "category",
+      "price_plausibility",
+      "description_usability",
+      "caution"
+    ]
+  },
+  {
+    "case_id": "seller-ambiguous-001",
+    "task": "seller",
+    "image_paths": [
+      ".agent-system/benchmark/assets/ambiguous-object.jpg"
+    ],
+    "profile": "ambiguous_object",
+    "notes": "Objet visuellement ambigu. Le modèle doit exprimer l'incertitude plutôt qu'inventer.",
+    "evaluation_focus": [
+      "uncertainty",
+      "hallucination_control",
+      "price_plausibility",
+      "description_usability"
+    ]
+  },
+  {
+    "case_id": "seller-collectible-001",
+    "task": "seller",
+    "image_paths": [
+      ".agent-system/benchmark/assets/collectible-object.jpg"
+    ],
+    "profile": "collectible_object",
+    "notes": "Objet potentiellement collection/vintage. Ne pas certifier rareté, époque ou authenticité sur photo seule.",
+    "evaluation_focus": [
+      "identification",
+      "hallucination_control",
+      "price_range_quality",
+      "caution"
+    ]
+  },
+  {
+    "case_id": "assistant-common-001",
+    "task": "assistant",
+    "image_paths": [
+      ".agent-system/benchmark/assets/common-object.jpg"
+    ],
+    "profile": "common_object",
+    "notes": "Même objet courant que le cas vendeur pour comparer l'analyse visiteur.",
+    "evaluation_focus": [
+      "identification",
+      "useful_context",
+      "price_plausibility",
+      "caution"
+    ]
+  },
+  {
+    "case_id": "assistant-ambiguous-001",
+    "task": "assistant",
+    "image_paths": [
+      ".agent-system/benchmark/assets/ambiguous-object.jpg"
+    ],
+    "profile": "ambiguous_object",
+    "notes": "Objet ambigu : priorité à la prudence et à l'explication des limites visuelles.",
+    "evaluation_focus": [
+      "uncertainty",
+      "hallucination_control",
+      "useful_context",
+      "caution"
+    ]
+  },
+  {
+    "case_id": "assistant-collectible-001",
+    "task": "assistant",
+    "image_paths": [
+      ".agent-system/benchmark/assets/collectible-object.jpg"
+    ],
+    "profile": "collectible_object",
+    "notes": "Objet potentiellement collection/vintage : contexte utile sans fausse expertise.",
+    "evaluation_focus": [
+      "identification",
+      "useful_context",
+      "hallucination_control",
+      "price_range_quality"
+    ]
+  },
+  {
+    "case_id": "fun-bring-to-life-001",
+    "task": "fun",
+    "image_paths": [],
+    "profile": "bring_to_life",
+    "notes": "Création courte où un objet courant prend vie.",
+    "evaluation_focus": [
+      "fun_factor",
+      "clarity",
+      "brevity",
+      "object_focus",
+      "safe_fiction"
+    ]
+  },
+  {
+    "case_id": "fun-movie-star-001",
+    "task": "fun",
+    "image_paths": [],
+    "profile": "movie_star",
+    "notes": "Création type affiche de film fictive centrée sur l'objet.",
+    "evaluation_focus": [
+      "fun_factor",
+      "memorability",
+      "brevity",
+      "object_focus",
+      "safe_fiction"
+    ]
+  },
+  {
+    "case_id": "fun-secret-power-001",
+    "task": "fun",
+    "image_paths": [],
+    "profile": "secret_power",
+    "notes": "Création d'un pouvoir absurde, faiblesse et punchline.",
+    "evaluation_focus": [
+      "fun_factor",
+      "memorability",
+      "clarity",
+      "brevity",
+      "safe_fiction"
+    ]
+  }
+]

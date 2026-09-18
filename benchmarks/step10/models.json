@@ -1,0 +1,51 @@
+[
+  {
+    "key": "gemini_baseline",
+    "provider": "google",
+    "model_id": "gemini-3.5-flash-lite",
+    "env_var": "GEMINI_API_KEY",
+    "verified": true,
+    "enabled": true,
+    "pricing_usd_per_million_tokens": {
+      "input": 0.3,
+      "output": 2.5
+    }
+  },
+  {
+    "key": "gemini_quality",
+    "provider": "google",
+    "model_id": "gemini-3.6-flash",
+    "env_var": "GEMINI_API_KEY",
+    "verified": true,
+    "enabled": true,
+    "pricing_usd_per_million_tokens": {
+      "input": 0.75,
+      "output": 3.75
+    }
+  },
+  {
+    "key": "openai_luna",
+    "provider": "openai",
+    "model_id": "gpt-5.6-luna",
+    "env_var": "OPENAI_API_KEY",
+    "verified": true,
+    "enabled": true,
+    "pricing_usd_per_million_tokens": {
+      "input": 0.2,
+      "output": 1.2
+    }
+  },
+  {
+    "key": "qwen_vl_flash",
+    "provider": "alibaba",
+    "model_id": "qwen3-vl-flash",
+    "env_var": "DASHSCOPE_API_KEY",
+    "verified": true,
+    "enabled": true,
+    "pricing_usd_per_million_tokens": {
+      "input": 0.022,
+      "output": 0.215
+    },
+    "pricing_scope": "Global, 0<Token<=32K"
+  }
+]

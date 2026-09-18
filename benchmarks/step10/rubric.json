@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "principle": "No single automatic quality score. Keep objective measurements separate from human judgement.",
+  "human_scale": {
+    "min": 1,
+    "max": 5,
+    "labels": {
+      "1": "poor",
+      "2": "weak",
+      "3": "acceptable",
+      "4": "good",
+      "5": "excellent"
+    }
+  },
+  "objective_metrics": [
+    "request_success",
+    "structured_output_valid",
+    "parsed_ok",
+    "latency_ms",
+    "input_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+    "estimated_cost_usd"
+  ],
+  "seller": [
+    "identification",
+    "category",
+    "price_plausibility",
+    "price_range_quality",
+    "description_usability",
+    "uncertainty",
+    "hallucination_control",
+    "caution"
+  ],
+  "assistant": [
+    "identification",
+    "useful_context",
+    "price_plausibility",
+    "price_range_quality",
+    "uncertainty",
+    "hallucination_control",
+    "caution"
+  ],
+  "fun": [
+    "fun_factor",
+    "memorability",
+    "clarity",
+    "brevity",
+    "object_focus",
+    "safe_fiction"
+  ],
+  "comparison_rules": [
+    "Do not compute an overall winner from the human dimensions alone.",
+    "Report objective metrics independently.",
+    "Flag hallucination or unsafe certainty as a qualitative concern even if the text is otherwise strong.",
+    "Use the same source image for matching seller and assistant cases.",
+    "Evaluate model outputs blind to provider/model name when practical."
+  ]
+}
