@@ -31,7 +31,17 @@ function getSessionId(): string {
 }
 
 export async function trackEvent(
-  eventName: 'session_started' | 'nav_opened' | 'catalogue_loaded' | 'error_shown',
+  eventName:
+    | 'session_started'
+    | 'nav_opened'
+    | 'catalogue_loaded'
+    | 'error_shown'
+    | 'demo_opened'
+    | 'feature_clicked'
+    | 'chat_started'
+    | 'message_count'
+    | 'demo_duration_s'
+    | 'demo_reset',
   properties: Record<string, string | number | boolean | null> = {}
 ): Promise<void> {
   try {
