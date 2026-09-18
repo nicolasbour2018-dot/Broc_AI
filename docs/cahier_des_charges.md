@@ -151,9 +151,9 @@ Pistes :
 2. **Fais de moi une star** — objet mis en scène dans une affiche / poster.
 3. **Raconte mon passé** — biographie fictive courte et explicitement imaginaire.
 4. **Mon pouvoir secret** — pouvoir absurde + punchline.
-5. **À définir** — ne pas inventer définitivement ce cinquième vœu sans nouvel arbitrage.
+5. **Pars en quête** — mini-aventure dans la fête foraine : un selfie avec l’objet, deux photos prises selon une mission courte, puis une histoire souvenir générée à partir des trois images.
 
-Maximum recommandé : deux sorties réellement visuelles parmi les cinq, les autres pouvant être textuelles pour réduire temps et coût.
+Le vœu `Pars en quête` doit expliquer son objectif avant le départ : *« Emmène ton objet à la fête foraine : un selfie, deux photos-missions, puis BrocAI raconte votre aventure. »* Les photos et selfies sont temporaires et ne doivent pas être conservés au-delà du traitement. Les quatre autres vœux réutilisent le contexte textuel de l’analyse initiale afin d’éviter de renvoyer l’image à chaque génération.
 
 ### 6.3 Règle de priorité
 

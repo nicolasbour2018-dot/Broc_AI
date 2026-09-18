@@ -280,15 +280,17 @@ Ne commencer que si les étapes 1 à 8 sont suffisamment stables.
 
 ### V1 du bloc
 
-- 5 vœux visibles ;
-- 3 utilisables par session/période définie ;
-- maximum 2 générations visuelles ;
-- résultat partageable/téléchargeable si simple à implémenter ;
-- mécanique ludique de limite.
+- une photo d’objet et une seule analyse vision initiale ;
+- 5 vœux visibles, dont 3 réussis maximum par objet ;
+- `Donne-moi vie`, `Fais de moi une star`, `Raconte mon passé`, `Mon pouvoir secret` ;
+- `Pars en quête` : selfie avec l’objet + deux photos-missions dans la fête foraine + mini-histoire finale ;
+- résultat visuel facile à garder en capture d’écran ;
+- photos temporaires supprimées après traitement ;
+- limite de trois appliquée côté serveur et passage par la queue IA existante.
 
 ### Critère de sortie
 
-Le bloc peut être totalement désactivé sans affecter les autres parcours.
+Les cinq vœux sont compréhensibles sur mobile, trois créations maximum peuvent réussir pour un objet, la quête photo produit un souvenir, et le bloc peut être désactivé sans affecter les autres parcours.
 
 ---
 

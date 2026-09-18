@@ -140,7 +140,7 @@ class AiQueueService:
 
                 # Persist feature-specific side effects in the same transaction as
                 # the terminal job status. This keeps restart recovery idempotent.
-                if feature == "assistant":
+                if feature in {"assistant", "fun_analyze"}:
                     analysis = AssistantObjectAnalysis.model_validate(result)
                     scan = AssistantScan(session_id=sid, analysis=analysis.model_dump(mode="json"), question_count=0)
                     db.add(scan)
@@ -153,7 +153,7 @@ class AiQueueService:
                     self._emit(
                         db,
                         sid,
-                        "object_scan_completed",
+                        "object_scan_completed" if feature == "assistant" else "fun_object_ready",
                         {
                             "category": analysis.category.value,
                             "confidence": analysis.confidence,
@@ -182,6 +182,32 @@ class AiQueueService:
                             "displayed_price_provided": payload.get("displayed_price_eur") is not None,
                         },
                     )
+
+                elif feature == "fun_wish":
+                    scan = db.scalar(
+                        select(AssistantScan)
+                        .where(AssistantScan.id == payload["scan_id"], AssistantScan.session_id == sid)
+                        .with_for_update()
+                    )
+                    if scan is None:
+                        raise RuntimeError("Objet FunLab introuvable pour cette session.")
+                    scan.question_count += 1
+                    remaining = max(0, 3 - scan.question_count)
+                    result["wishes_remaining"] = remaining
+                    result["wish_index"] = scan.question_count
+                    self._emit(
+                        db,
+                        sid,
+                        "fun_wish_completed",
+                        {
+                            "wish_type": payload["wish_type"],
+                            "quest_type": payload.get("quest_type"),
+                            "wish_index": scan.question_count,
+                            "wishes_remaining": remaining,
+                        },
+                    )
+                    if remaining == 0:
+                        self._emit(db, sid, "fun_session_completed", {"wishes_used": 3})
 
                 job.status = "success"
                 job.result = result
@@ -214,15 +240,18 @@ class AiQueueService:
                 pass
             return
 
-        if feature == "assistant" and payload.get("image_key"):
+        if feature in {"assistant", "fun_analyze"} and payload.get("image_key"):
             delete_image(payload["image_key"])
+        if feature == "fun_wish":
+            for image_key in payload.get("image_keys", []):
+                delete_image(image_key)
 
     def _execute_job_sync(self, feature: str, payload: dict[str, Any], sid: str) -> dict[str, Any]:
         if feature == "seller":
             analysis = vision_provider.analyze_for_listing(payload["image_key"], payload.get("filename"))
             return analysis.model_dump(mode="json")
 
-        if feature == "assistant":
+        if feature in {"assistant", "fun_analyze"}:
             analysis = vision_provider.analyze_object(payload["image_key"])
             return analysis.model_dump(mode="json")
 
@@ -244,6 +273,24 @@ class AiQueueService:
                 payload.get("displayed_price_eur"),
             )
             return {"answer": answer}
+
+        if feature == "fun_wish":
+            scan_id = payload["scan_id"]
+            with SessionLocal() as db:
+                scan = db.scalar(
+                    select(AssistantScan).where(AssistantScan.id == scan_id, AssistantScan.session_id == sid)
+                )
+                if scan is None:
+                    raise RuntimeError("Objet FunLab introuvable pour cette session.")
+                analysis = AssistantObjectAnalysis.model_validate(scan.analysis)
+
+            creation = vision_provider.create_fun_wish(
+                analysis,
+                payload["wish_type"],
+                payload.get("quest_type"),
+                list(payload.get("image_keys", [])),
+            )
+            return creation.model_dump(mode="json")
 
         raise RuntimeError(f"Type de tâche IA inconnu : {feature}")
 
@@ -268,8 +315,11 @@ class AiQueueService:
     @staticmethod
     def _cleanup_failed_upload(feature: str, payload: dict[str, Any]) -> None:
         image_key = payload.get("image_key")
-        if image_key and feature in {"seller", "assistant"}:
+        if image_key and feature in {"seller", "assistant", "fun_analyze"}:
             delete_image(image_key)
+        if feature == "fun_wish":
+            for queued_image_key in payload.get("image_keys", []):
+                delete_image(queued_image_key)
 
     @staticmethod
     def _looks_like_timeout(exc: Exception) -> bool:

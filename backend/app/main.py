@@ -9,6 +9,7 @@ from .ai_queue import ACTIVE_STATUSES, ai_queue
 from .categories import ListingCategory, normalize_category
 from .config import settings
 from .db import engine, get_db, init_db
+from .funlab import router as funlab_router
 from .models import AiJob, AssistantScan, Event, Listing, utcnow
 from .schemas import (
     AiJobOut,
@@ -45,6 +46,7 @@ app.add_middleware(
 )
 app.mount("/media", StaticFiles(directory=settings.upload_dir, check_dir=False), name="media")
 app.include_router(telemetry_router)
+app.include_router(funlab_router)
 
 
 def session_id(value: str | None) -> str:

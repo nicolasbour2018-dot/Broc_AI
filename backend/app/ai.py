@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from .categories import LISTING_CATEGORIES, ListingCategory
 from .config import settings
-from .schemas import AssistantObjectAnalysis, AssistantQuestionType, PriceRange, SellerAnalysis
+from .schemas import AssistantObjectAnalysis, AssistantQuestionType, FunCreativeDraft, FunQuestType, FunWishType, PriceRange, SellerAnalysis
 
 
 class VisionProvider(Protocol):
@@ -23,6 +23,14 @@ class VisionProvider(Protocol):
         question: str | None,
         displayed_price_eur: float | None,
     ) -> str: ...
+
+    def create_fun_wish(
+        self,
+        analysis: AssistantObjectAnalysis,
+        wish_type: FunWishType,
+        quest_type: FunQuestType | None,
+        image_keys: list[str],
+    ) -> FunCreativeDraft: ...
 
 
 class GeminiListingDraft(BaseModel):
@@ -124,6 +132,50 @@ class MockVisionProvider:
         if question_type == "negotiate":
             return "Mode développement : propose poliment un prix un peu inférieur et garde le sourire — la brocante reste un échange entre personnes."
         return f"Mode développement : question reçue — {question or 'aucune question'}"
+
+    def create_fun_wish(
+        self,
+        analysis: AssistantObjectAnalysis,
+        wish_type: FunWishType,
+        quest_type: FunQuestType | None,
+        image_keys: list[str],
+    ) -> FunCreativeDraft:
+        self._simulate_test_conditions()
+        name = analysis.name or "Objet de brocante"
+        examples = {
+            "bring_to_life": (
+                f"{name} prend vie",
+                "Caractère : curieux, légèrement dramatique.",
+                f"{name} s’est réveillé avec une seule idée : découvrir ce qui se passe de l’autre côté du stand. Sa réplique préférée : « On ne me range pas, on m’expose ! »",
+                "Objet vivant",
+            ),
+            "movie_star": (
+                f"{name} — Le grand rôle",
+                "Cette saison, la brocante a trouvé sa star.",
+                f"Dans ce film totalement imaginaire, {name} vole la vedette à tout le monde et refuse catégoriquement les doublures. Sortie mondiale : juste après la fermeture de la brocante.",
+                "Affiche fictive",
+            ),
+            "imaginary_past": (
+                f"Les vies secrètes de {name}",
+                "Biographie 100 % inventée.",
+                f"La légende raconte que {name} a traversé trois déménagements, un dimanche pluvieux et une négociation historique à 2 €. Rien de tout cela n’est vrai — mais il mérite clairement son autobiographie.",
+                "Passé imaginaire",
+            ),
+            "secret_power": (
+                f"Le pouvoir de {name}",
+                "Pouvoir : attirer les bonnes affaires à dix mètres.",
+                "Son seul point faible ? Les étiquettes de prix de travers. Face à elles, même ses pouvoirs deviennent incontrôlables.",
+                "Pouvoir débloqué",
+            ),
+            "fairground_quest": (
+                f"{name} à la fête",
+                "Trois photos, une épopée complètement inventée.",
+                f"Après un selfie officiel, {name} a inspecté la fête comme une célébrité en tournée. Entre les deux indices photographiés, il a trouvé son décor préféré et décidé que cette sortie méritait déjà une suite.",
+                "Quête accomplie",
+            ),
+        }
+        title, subtitle, story, badge = examples[wish_type]
+        return FunCreativeDraft(wish_type=wish_type, title=title, subtitle=subtitle, story=story, badge=badge)
 
 
 class GeminiVisionProvider:
@@ -287,6 +339,72 @@ Question libre : {question or 'aucune'}
         if not response.text:
             raise RuntimeError("Gemini n'a renvoyé aucune réponse exploitable.")
         return GeminiQuestionAnswer.model_validate_json(response.text).answer.strip()
+
+    def create_fun_wish(
+        self,
+        analysis: AssistantObjectAnalysis,
+        wish_type: FunWishType,
+        quest_type: FunQuestType | None,
+        image_keys: list[str],
+    ) -> FunCreativeDraft:
+        from google.genai import types
+
+        intents = {
+            "bring_to_life": "Transforme l'objet en personnage : donne-lui un tempérament, une mini-réplique et une micro-histoire amusante.",
+            "movie_star": "Imagine une affiche de film centrée sur l'objet : titre marquant, slogan court et mini-pitch. Tout doit être fictif.",
+            "imaginary_past": "Écris une biographie très courte, explicitement imaginaire, comme si l'objet avait déjà vécu plusieurs aventures.",
+            "secret_power": "Invente un super-pouvoir absurde pour l'objet, une faiblesse ridicule et une punchline.",
+            "fairground_quest": "Raconte une mini-aventure à la fête foraine à partir des trois photos fournies.",
+        }
+        quest_prompts = {
+            "grand_tour": "Photo 2 : attraction qui correspond à la personnalité de l'objet. Photo 3 : endroit où l'objet voudrait finir sa soirée.",
+            "secret_mission": "Photo 2 : quelque chose de plus bruyant ou agité que l'objet. Photo 3 : sa couleur jumelle.",
+            "fair_star": "Photo 2 : décor parfait pour l'affiche de l'objet. Photo 3 : rival ou complice possible.",
+        }
+
+        prompt = f"""
+Tu écris pour le FunLab de BrocAI, lors d'une brocante française avec fête foraine.
+L'expérience doit être immédiatement compréhensible, drôle, bienveillante et courte. Le sujet principal reste l'objet.
+Tout élément historique, biographique, héroïque ou cinématographique doit être clairement présenté comme imaginaire.
+N'affirme jamais une marque, une authenticité, une origine ou une valeur à partir de ce contexte.
+Si une personne apparaît sur une photo, ne l'identifie pas, ne décris pas son physique et n'infère aucune caractéristique sensible : elle est seulement le compagnon ou la compagne d'aventure de l'objet.
+
+Objet déjà analysé :
+{json.dumps(analysis.model_dump(mode='json'), ensure_ascii=False)}
+
+Vœu : {wish_type}
+Consigne créative : {intents[wish_type]}
+{f'Mini-aventure : {quest_prompts.get(quest_type, "")}' if wish_type == 'fairground_quest' else ''}
+
+Retourne exactement une création courte :
+- title : titre mémorable ;
+- subtitle : une phrase très courte ;
+- story : 2 à 4 phrases maximum ;
+- badge : 2 à 4 mots ;
+- wish_type : exactement "{wish_type}".
+""".strip()
+
+        contents = prompt
+        if wish_type == "fairground_quest":
+            if len(image_keys) != 3:
+                raise ValueError("La quête FunLab attend exactement trois photos.")
+            contents = [prompt, self._image_part(image_keys[0]), self._image_part(image_keys[1]), self._image_part(image_keys[2])]
+
+        response = self.client.models.generate_content(
+            model=settings.gemini_model,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=FunCreativeDraft,
+                temperature=0.8,
+            ),
+        )
+        if not response.text:
+            raise RuntimeError("Gemini n'a renvoyé aucune création FunLab exploitable.")
+        result = FunCreativeDraft.model_validate_json(response.text)
+        if result.wish_type != wish_type:
+            result.wish_type = wish_type
+        return result
 
 
 def get_vision_provider() -> VisionProvider:
