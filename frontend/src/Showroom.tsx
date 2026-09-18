@@ -22,10 +22,10 @@ const DEMOS: Record<DemoKey, DemoMeta> = {
     promise: 'De l’offre détectée à la prochaine action utile.',
     icon: '↗',
     features: [
-      { id: 'dashboard', label: 'Dashboard' },
-      { id: 'offers', label: 'Offres' },
+      { id: 'dashboard', label: 'Cockpit' },
       { id: 'applications', label: 'Candidatures' },
-      { id: 'chat', label: 'Assistant' }
+      { id: 'statistics', label: 'Statistiques' },
+      { id: 'chat', label: 'Assistant Rocky' }
     ]
   },
   basket: {
@@ -121,7 +121,16 @@ function Stat({ label, value, note }: { label: string; value: string; note: stri
 function RockyView({ feature, onFeature }: { feature: string; onFeature: (feature: string, action?: string) => void }) {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>(DEFAULT_ROCKY_CHAT)
+  const [cockpitView, setCockpitView] = useState<'suggestions' | 'new' | 'enrichment' | 'mine' | 'flow'>('suggestions')
+  const [watchRun, setWatchRun] = useState(false)
+  const [selectedApplication, setSelectedApplication] = useState(0)
   const chatStarted = useRef(false)
+
+  const applications = [
+    { id: 18, company: 'Terranova', role: 'Data Analyst · Impact', status: 'PRÉPARÉE', score: 92, date: '18/09/2026' },
+    { id: 17, company: 'Novadata', role: 'Data Ops Junior', status: 'CANDIDATURE ENVOYÉE', score: 86, date: '12/09/2026' },
+    { id: 14, company: 'GreenMetrics', role: 'Assistant Data', status: 'ENTRETIEN', score: 84, date: '10/09/2026' }
+  ]
 
   function send(e: FormEvent) {
     e.preventDefault()
@@ -137,43 +146,171 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
     void trackEvent('message_count', { demo: 'rocky', count: next.length - 1 })
   }
 
-  if (feature === 'offers') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Veille fictive</span><h2>Offres prioritaires</h2></div><strong>36 détectées · 3 retenues</strong></div>
-      <div className="showroom-list">{ROCKY_MATCHES.map((item, index) => <article key={item.role} className="showroom-row-card"><div className="showroom-rank">0{index + 1}</div><div><h3>{item.role}</h3><p>{item.company} · {item.detail}</p></div><div className="showroom-score"><strong>{item.score}%</strong><span>match</span></div></article>)}</div>
-      <button className="showroom-action" type="button" onClick={() => onFeature('applications', 'prepare_application')}>Simuler la préparation d’une candidature →</button>
+  if (feature === 'applications') return (
+    <section className="rocky-showcase">
+      <div className="rocky-kicker-demo">Suivi & candidatures</div>
+      <h1 className="rocky-page-title">Candidatures</h1>
+      <p className="rocky-page-caption">Pilotage des dossiers, retours recruteurs et prochaines actions.</p>
+
+      <div className="rocky-metrics-grid rocky-metrics-apps">
+        <div><span>Offres suivies</span><strong>12</strong></div>
+        <div><span>Dossiers</span><strong>3</strong></div>
+        <div><span>Envoyées</span><strong>2</strong></div>
+        <div><span>Réponses</span><strong>1</strong></div>
+        <div><span>Entretiens</span><strong>1</strong></div>
+        <div><span>Taux de réponse</span><strong>50 %</strong></div>
+      </div>
+
+      <div className="rocky-section-head"><div><span>Dossiers récents</span><strong>3 candidatures</strong></div><small>utilise les cartes pour parcourir la démo</small></div>
+      <div className="rocky-application-grid">
+        {applications.map((application, index) => (
+          <button
+            key={application.id}
+            type="button"
+            className={selectedApplication === index ? 'active' : ''}
+            onClick={() => { setSelectedApplication(index); onFeature('applications', 'select_application') }}
+          >
+            <small>#{application.id} · {application.date}</small>
+            <strong>{application.company}</strong>
+            <span>{application.role}</span>
+            <em>{application.status} · score {application.score} %</em>
+            <b>{selectedApplication === index ? 'Dossier ouvert' : 'Voir le dossier'}</b>
+          </button>
+        ))}
+      </div>
+
+      <div className="rocky-two-columns">
+        <div className="rocky-card-panel">
+          <span className="rocky-small-label">Dossier sélectionné</span>
+          <h3>{applications[selectedApplication].company} · {applications[selectedApplication].role}</h3>
+          <div className="rocky-status-line"><span>Statut</span><strong>{applications[selectedApplication].status}</strong></div>
+          <div className="rocky-status-line"><span>Matching</span><strong>{applications[selectedApplication].score} %</strong></div>
+          <button type="button" className="rocky-primary-button" onClick={() => onFeature('applications', 'prepare_application')}>Préparer / revoir le dossier</button>
+        </div>
+        <div className="rocky-card-panel rocky-mail-card">
+          <span className="rocky-small-label">File Gmail simulée</span>
+          <h3>1 réponse à vérifier</h3>
+          <p><strong>Novadata</strong> · “Suite à votre candidature”</p>
+          <p>Classification fictive : <b>ENTRETIEN</b> · confiance 94 %</p>
+          <button type="button" onClick={() => onFeature('applications', 'review_email')}>Voir l’e-mail simulé</button>
+        </div>
+      </div>
     </section>
   )
 
-  if (feature === 'applications') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Pipeline fictif</span><h2>Candidatures</h2></div><strong>3 actives</strong></div>
-      <div className="showroom-kanban">
-        <div><span className="showroom-column-title">À envoyer · 1</span><article><strong>Terranova</strong><p>Data Analyst · 92 %</p><small>CV adapté · lettre prête</small></article></div>
-        <div><span className="showroom-column-title">Envoyées · 1</span><article><strong>Novadata</strong><p>Data Ops Junior · J+6</p><small>Relance recommandée</small></article></div>
-        <div><span className="showroom-column-title">Entretien · 1</span><article><strong>GreenMetrics</strong><p>Assistant Data</p><small>Vendredi · 10:30</small></article></div>
+  if (feature === 'statistics') return (
+    <section className="rocky-showcase">
+      <div className="rocky-kicker-demo">Mesure & progression</div>
+      <h1 className="rocky-page-title">Statistiques</h1>
+      <p className="rocky-page-caption">Un bilan visuel du flux d’offres jusqu’aux retours des recruteurs.</p>
+
+      <div className="rocky-metrics-grid rocky-metrics-stats">
+        <div><span>Offres suivies</span><strong>12</strong></div>
+        <div><span>Dossiers</span><strong>3</strong></div>
+        <div><span>Envoyées</span><strong>2</strong></div>
+        <div><span>Réponses</span><strong>1</strong></div>
+        <div><span>Entretiens</span><strong>1</strong></div>
+        <div><span>Taux de réponse</span><strong>50 %</strong></div>
+        <div><span>Délai de réponse</span><strong>4,5 j</strong></div>
       </div>
-      <div className="showroom-callout"><span>Prochaine action</span><strong>Relancer Novadata aujourd’hui</strong><p>Suggestion générée à partir d’un scénario fictif, aucun email réel n’est envoyé.</p></div>
+
+      <div className="rocky-stat-layout">
+        <div className="rocky-card-panel">
+          <span className="rocky-small-label">Entonnoir</span>
+          <h3>Du dossier à l’entretien</h3>
+          <div className="rocky-funnel">
+            {[['Préparées', 3], ['Envoyées', 2], ['Réponses', 1], ['Entretiens', 1], ['Offres', 0]].map(([label, value]) => (
+              <div key={String(label)}><span>{label}</span><i style={{ width: `${Math.max(8, Number(value) * 28)}%` }} /><strong>{value}</strong></div>
+            ))}
+          </div>
+        </div>
+        <div className="rocky-card-panel">
+          <span className="rocky-small-label">Distribution du matching</span>
+          <h3>Scores Rocky</h3>
+          <div className="rocky-histogram">{[28, 42, 58, 82, 96, 70, 45, 22].map((height, index) => <i key={index} style={{ height: `${height}px` }} />)}</div>
+          <div className="rocky-chart-axis"><span>60 %</span><span>70 %</span><span>80 %</span><span>90 %+</span></div>
+        </div>
+      </div>
     </section>
   )
 
   if (feature === 'chat') return (
-    <section className="showroom-panel showroom-chat-panel">
-      <div className="showroom-panel-head"><div><span>Assistant fictif</span><h2>Rocky Copilot</h2></div><strong>Aucune connexion externe</strong></div>
-      <div className="showroom-chat">{messages.map((message, index) => <div key={index} className={`showroom-message ${message.role}`}><span>{message.role === 'assistant' ? 'Rocky' : 'Vous'}</span><p>{message.text}</p></div>)}</div>
-      <div className="showroom-chips"><button type="button" onClick={() => setInput('Quelle offre prioriser ?')}>Quelle offre prioriser ?</button><button type="button" onClick={() => setInput('Quelle relance aujourd’hui ?')}>Quelle relance aujourd’hui ?</button></div>
-      <form className="showroom-chat-form" onSubmit={send}><input value={input} onChange={e => setInput(e.target.value)} placeholder="Pose une question sur ce scénario fictif…" /><button type="submit">Envoyer</button></form>
+    <section className="rocky-showcase rocky-assistant-page">
+      <div className="rocky-kicker-demo">Copilote personnel</div>
+      <h1 className="rocky-page-title">Assistant Rocky</h1>
+      <p className="rocky-page-caption">Rocky lit les données du scénario ; toute modification reste visible et confirmable.</p>
+      <div className="rocky-hero-demo"><strong>On regarde les vraies annonces, ensemble.</strong><span>Demande un comparatif, une piste de candidature ou un point rapide sur ton suivi.</span></div>
+
+      <div className="rocky-mascot-stage">
+        <img
+          src="/rocky_mascot.png"
+          alt="Mascotte Rocky"
+          onError={event => {
+            event.currentTarget.onerror = null
+            event.currentTarget.src = 'https://raw.githubusercontent.com/nicolasbour2018-dot/Rocky_assistant_job/main/assets/rocky_mascot.png'
+          }}
+        />
+      </div>
+
+      <div className="rocky-example-row"><span>« Fais-moi un bilan »</span><span>« Quelle offre prioriser ? »</span><span>« Quelle relance aujourd’hui ? »</span></div>
+      <div className="rocky-chat-box">
+        {messages.map((message, index) => <div key={index} className={`rocky-chat-message ${message.role}`}><span>{message.role === 'assistant' ? 'Rocky' : 'Vous'}</span><p>{message.text}</p></div>)}
+      </div>
+      <div className="rocky-chat-chips"><button type="button" onClick={() => setInput('Fais-moi un bilan')}>Fais-moi un bilan</button><button type="button" onClick={() => setInput('Quelle offre prioriser ?')}>Quelle offre prioriser ?</button><button type="button" onClick={() => setInput('Quelle relance aujourd’hui ?')}>Quelle relance aujourd’hui ?</button></div>
+      <form className="rocky-chat-form" onSubmit={send}><input value={input} onChange={event => setInput(event.target.value)} placeholder="Demande un bilan ou prépare une action…" /><button type="submit">Envoyer</button></form>
     </section>
   )
 
+  const views = [
+    { id: 'suggestions' as const, label: 'Suggestions', count: 3 },
+    { id: 'new' as const, label: 'Nouvelles', count: 8 },
+    { id: 'enrichment' as const, label: 'À enrichir', count: 2 },
+    { id: 'mine' as const, label: 'Mes annonces', count: 5 },
+    { id: 'flow' as const, label: 'Tout le flux', count: 12 }
+  ]
+
   return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Vue du jour</span><h2>Recherche pilotée</h2></div><strong>18 septembre · démo</strong></div>
-      <div className="showroom-stats"><Stat label="Offres suivies" value="12" note="+4 cette semaine" /><Stat label="Match ≥ 80 %" value="4" note="dont 1 à 92 %" /><Stat label="Candidatures" value="3" note="1 entretien" /><Stat label="Action du jour" value="1" note="relance conseillée" /></div>
-      <div className="showroom-split"><div><span className="showroom-section-label">Top matching</span>{ROCKY_MATCHES.slice(0, 3).map(item => <button key={item.role} className="showroom-match" type="button" onClick={() => onFeature('offers', 'open_match')}><div><strong>{item.role}</strong><small>{item.company}</small></div><span>{item.score}%</span></button>)}</div><div className="showroom-callout"><span>Rocky recommande</span><strong>Concentre l’effort, pas le volume.</strong><p>Une candidature ciblée aujourd’hui vaut mieux que cinq génériques.</p><button type="button" onClick={() => onFeature('chat', 'open_copilot')}>Demander au copilote</button></div></div>
+    <section className="rocky-showcase">
+      <div className="rocky-kicker-demo">Recherche & décisions</div>
+      <h1 className="rocky-page-title">Rocky Assistant Recherche d'emploi · V2</h1>
+      <p className="rocky-page-caption">Cockpit personnel · veille, matching et prochaines actions</p>
+      <div className="rocky-hero-demo"><strong>Ton terrain de jeu pour la prochaine bonne opportunité.</strong><span>Explore les suggestions, ajuste ton profil et laisse Rocky te guider vers les annonces qui comptent.</span></div>
+      <p className="rocky-profile-caption">Profil actif : <strong>Data / IA · Junior</strong></p>
+
+      <div className="rocky-watch-card">
+        <span className="rocky-small-label">Veille manuelle</span>
+        <label>Postes recherchés pour cette veille</label>
+        <div className="rocky-watch-row"><input defaultValue="Data Analyst, Data Ops, Automation" /><button type="button" onClick={() => { setWatchRun(true); onFeature('dashboard', 'run_watch') }}>Lancer la veille</button><button type="button" className="rocky-threshold">Seuil · 75 %</button></div>
+        <small>Requêtes utilisées : Data Analyst · Data Ops · Automation</small>
+      </div>
+      {watchRun && <div className="rocky-success">Veille terminée — 8 nouvelles annonces ajoutées, dont 3 recommandations à 80 % ou plus.</div>}
+
+      <div className="rocky-view-tabs">
+        {views.map(view => <button key={view.id} type="button" className={cockpitView === view.id ? 'active' : ''} onClick={() => { setCockpitView(view.id); onFeature('dashboard', `view_${view.id}`) }}>{view.label} · {view.count}</button>)}
+      </div>
+
+      <div className="rocky-next-action">
+        <div><span className="rocky-small-label">Prochaine action</span><strong>📬 1 réponse à vérifier</strong><small>Valide les retours Gmail pour garder tes candidatures à jour.</small></div>
+        <button type="button" onClick={() => onFeature('applications', 'open_pending_email')}>Ouvrir</button>
+      </div>
+
+      <h2 className="rocky-results-title">{views.find(view => view.id === cockpitView)?.label} · {cockpitView === 'suggestions' ? 3 : cockpitView === 'new' ? 8 : cockpitView === 'enrichment' ? 2 : cockpitView === 'mine' ? 5 : 12} résultat(s)</h2>
+      <div className="rocky-jobs-grid">
+        {ROCKY_MATCHES.map((item, index) => (
+          <article key={item.role} className="rocky-job-card">
+            <div className="rocky-job-head"><h3>{item.role}</h3><div><small>Score</small><strong>{item.score} %</strong></div></div>
+            <strong>{item.company}</strong>
+            <p>Paris / hybride · Salaire non précisé</p>
+            <small>`NOUVELLE` · source démo · {index === 0 ? '18/09/2026' : '17/09/2026'}</small>
+            <button type="button" className="rocky-primary-button" onClick={() => onFeature('dashboard', 'open_job_detail')}>Ouvrir la fiche complète</button>
+            <button type="button" className="rocky-secondary-button" onClick={() => onFeature('dashboard', 'open_matching')}>Analyse du matching</button>
+          </article>
+        ))}
+      </div>
     </section>
   )
 }
+
 
 function BasketView({ feature, onFeature }: { feature: string; onFeature: (feature: string, action?: string) => void }) {
   const [selected, setSelected] = useState(0)
