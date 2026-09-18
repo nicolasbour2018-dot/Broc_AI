@@ -70,11 +70,24 @@ export interface AssistantQuestionResponse {
   questions_remaining: number
 }
 
+export type FunWishType = 'bring_to_life' | 'movie_star' | 'imaginary_past' | 'secret_power' | 'fairground_quest'
+export type FunQuestType = 'grand_tour' | 'secret_mission' | 'fair_star'
+
+export interface FunWishResult {
+  wish_type: FunWishType
+  title: string
+  subtitle: string
+  story: string
+  badge: string
+  wishes_remaining: number
+  wish_index: number
+}
+
 export type AiJobStatus = 'queued' | 'running' | 'success' | 'error' | 'timeout'
 
 export interface AiJobProgress {
   id: string
-  feature: 'seller' | 'assistant' | 'assistant_question'
+  feature: 'seller' | 'assistant' | 'assistant_question' | 'fun_analyze' | 'fun_wish'
   status: AiJobStatus
   queue_position: number | null
   queue_size: number

@@ -1,5 +1,5 @@
 import type { ListingCategory } from './categories'
-import type { AdminMetrics, AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
+import type { AdminMetrics, AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, FunQuestType, FunWishResult, FunWishType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 const SESSION_KEY = 'brocai-session-id'
 const SESSION_STARTED_KEY = 'brocai-session-started'
@@ -250,6 +250,58 @@ export async function askAssistantQuestion(
   })
   if (!response.ok) throw new Error(await parseError(response))
   const job = await response.json() as AiJob<AssistantQuestionResponse>
+  return waitForAiJob(job, onProgress)
+}
+
+
+export async function analyzeFunPhoto(file: File, onProgress?: ProgressCallback): Promise<AssistantAnalysis> {
+  const body = new FormData()
+  body.append('photo', file)
+  const response = await fetch('/api/fun/analyze', {
+    method: 'POST',
+    headers: { 'X-Session-ID': getSessionId() },
+    body
+  })
+  if (!response.ok) throw new Error(await parseError(response))
+  const job = await response.json() as AiJob<AssistantAnalysis>
+  return waitForAiJob(job, onProgress)
+}
+
+export async function requestFunWish(
+  scanId: string,
+  wishType: Exclude<FunWishType, 'fairground_quest'>,
+  onProgress?: ProgressCallback
+): Promise<FunWishResult> {
+  const response = await fetch(`/api/fun/scans/${encodeURIComponent(scanId)}/wishes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Session-ID': getSessionId() },
+    body: JSON.stringify({ wish_type: wishType })
+  })
+  if (!response.ok) throw new Error(await parseError(response))
+  const job = await response.json() as AiJob<FunWishResult>
+  return waitForAiJob(job, onProgress)
+}
+
+export async function requestFunQuest(
+  scanId: string,
+  questType: FunQuestType,
+  selfie: File,
+  missionOne: File,
+  missionTwo: File,
+  onProgress?: ProgressCallback
+): Promise<FunWishResult> {
+  const body = new FormData()
+  body.append('quest_type', questType)
+  body.append('selfie', selfie)
+  body.append('mission_one', missionOne)
+  body.append('mission_two', missionTwo)
+  const response = await fetch(`/api/fun/scans/${encodeURIComponent(scanId)}/quest`, {
+    method: 'POST',
+    headers: { 'X-Session-ID': getSessionId() },
+    body
+  })
+  if (!response.ok) throw new Error(await parseError(response))
+  const job = await response.json() as AiJob<FunWishResult>
   return waitForAiJob(job, onProgress)
 }
 

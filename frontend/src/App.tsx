@@ -2,11 +2,12 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
 import Admin from './Admin'
 import Showroom from './Showroom'
+import FunLab from './FunLab'
 import { DEFAULT_CATEGORY, LISTING_CATEGORIES } from './categories'
 import type { ListingCategory } from './categories'
 import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
-type View = 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom'
+type View = 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom' | 'funlab'
 type SellerMode = 'dashboard' | 'create' | 'edit'
 
 const SELLER_STAND_KEY = 'brocai-seller-stand'
@@ -57,6 +58,9 @@ function Home({ navigate }: { navigate: (view: View) => void }) {
         </button>
         <button className="journey-card" onClick={() => navigate('assistant')}>
           <span className="journey-icon">✦</span><strong>J’analyse</strong><small>Photographier un objet pour en savoir plus</small>
+        </button>
+        <button className="journey-card" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>
+          <span className="journey-icon">✺</span><strong>FunLab</strong><small>3 vœux pour donner une autre vie à ton objet</small>
         </button>
       </div>
     </main>
@@ -592,7 +596,7 @@ export default function App() {
   const [view, setView] = useState<View>(
     window.location.pathname === '/admin'
       ? 'admin'
-      : window.location.pathname === '/showroom' ? 'showroom' : 'home'
+      : window.location.pathname === '/showroom' ? 'showroom' : window.location.pathname === '/fun' ? 'funlab' : 'home'
   )
   const previousView = useRef<View | null>(null)
 
@@ -609,6 +613,7 @@ export default function App() {
   const content = useMemo(() => {
     if (view === 'admin') return <Admin goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'showroom') return <Showroom exitShowroom={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
+    if (view === 'funlab') return <FunLab goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => setView('market')} />
     if (view === 'market') return <Market goHome={() => setView('home')} />
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />

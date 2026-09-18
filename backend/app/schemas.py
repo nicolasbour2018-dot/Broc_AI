@@ -15,7 +15,7 @@ AiJobStatus = Literal["queued", "running", "success", "error", "timeout"]
 
 class AiJobOut(BaseModel):
     id: str
-    feature: Literal["seller", "assistant", "assistant_question"]
+    feature: Literal["seller", "assistant", "assistant_question", "fun_analyze", "fun_wish"]
     status: AiJobStatus
     queue_position: int | None = None
     queue_size: int = 0
@@ -81,6 +81,21 @@ class AssistantQuestionRequest(BaseModel):
 class AssistantQuestionOut(BaseModel):
     answer: str = Field(min_length=1, max_length=1200)
     questions_remaining: int = Field(ge=0, le=3)
+
+FunWishType = Literal["bring_to_life", "movie_star", "imaginary_past", "secret_power", "fairground_quest"]
+FunQuestType = Literal["grand_tour", "secret_mission", "fair_star"]
+
+
+class FunWishRequest(BaseModel):
+    wish_type: FunWishType
+
+
+class FunCreativeDraft(BaseModel):
+    wish_type: FunWishType
+    title: str = Field(min_length=1, max_length=120)
+    subtitle: str = Field(min_length=1, max_length=180)
+    story: str = Field(min_length=1, max_length=900)
+    badge: str = Field(min_length=1, max_length=80)
 
 
 class ListingCreate(BaseModel):
