@@ -42,16 +42,16 @@ const DEMOS: Record<DemoKey, DemoMeta> = {
     ]
   },
   garage: {
-    name: 'Garage OS',
-    eyebrow: 'Pilotage métier',
-    description: 'Clients, véhicules, interventions, devis et planning dans une interface opérationnelle simple.',
-    promise: 'Voir l’atelier, les urgences et le chiffre du jour.',
-    icon: '◇',
+    name: 'Garage Gildoni',
+    eyebrow: 'Application métier automobile',
+    description: 'Prédevis, espace client, atelier et gestion réunis dans une application locale adaptée au fonctionnement du garage.',
+    promise: 'Du premier prédevis au suivi de réparation et au règlement.',
+    icon: '🔧',
     features: [
-      { id: 'dashboard', label: 'Atelier' },
-      { id: 'planning', label: 'Planning' },
-      { id: 'interventions', label: 'Interventions' },
-      { id: 'quotes', label: 'Devis' }
+      { id: 'dashboard', label: 'Accueil & prédevis' },
+      { id: 'workshop', label: 'Atelier' },
+      { id: 'client', label: 'Espace client' },
+      { id: 'admin', label: 'Gestion' }
     ]
   },
   jarvis: {
@@ -347,36 +347,207 @@ function BasketView({ feature, onFeature }: { feature: string; onFeature: (featu
 }
 
 function GarageView({ feature, onFeature }: { feature: string; onFeature: (feature: string, action?: string) => void }) {
-  const [quoteValidated, setQuoteValidated] = useState(false)
+  const [prequoteSent, setPrequoteSent] = useState(false)
+  const [workshopTab, setWorkshopTab] = useState<'prequotes' | 'quotes' | 'repairs' | 'appointments'>('prequotes')
+  const [clientTab, setClientTab] = useState<'vehicles' | 'quotes' | 'repairs' | 'appointments'>('vehicles')
+  const [quoteSent, setQuoteSent] = useState(false)
+  const [repairProgress, setRepairProgress] = useState(52)
+  const [paymentSaved, setPaymentSaved] = useState(false)
 
-  if (feature === 'planning') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Planning fictif</span><h2>Atelier · aujourd’hui</h2></div><strong>4 interventions</strong></div>
-      <div className="showroom-timeline">{GARAGE_JOBS.map(job => <article key={job.time}><time>{job.time}</time><div><strong>{job.car}</strong><p>{job.job}</p></div><span>{job.status}</span></article>)}</div>
+  const vehicles = [
+    { registration: 'AB-123-CD', name: 'Peugeot 208', mileage: '84 200 km' },
+    { registration: 'GH-456-IJ', name: 'Renault Clio', mileage: '112 600 km' }
+  ]
+
+  const quotes = [
+    { number: 'DEV-2026-041', status: quoteSent ? 'Envoyé' : 'Brouillon', total: '286,80 €' },
+    { number: 'DEV-2026-038', status: 'Accepté', total: '144,00 €' }
+  ]
+
+  if (feature === 'workshop') return (
+    <section className="gildoni-showcase">
+      <div className="gildoni-page-head">
+        <div><span>Espace métier</span><h1>Atelier</h1><p>Prédevis, devis, réparations et rendez-vous.</p></div>
+        <div className="gildoni-role-badge">Espace : <strong>atelier</strong></div>
+      </div>
+
+      <div className="gildoni-tabs">
+        {[
+          ['prequotes', 'Prédevis'],
+          ['quotes', 'Devis'],
+          ['repairs', 'Réparations'],
+          ['appointments', 'Rendez-vous']
+        ].map(([id, label]) => (
+          <button key={id} type="button" className={workshopTab === id ? 'active' : ''} onClick={() => { setWorkshopTab(id as typeof workshopTab); onFeature('workshop', `tab_${id}`) }}>{label}</button>
+        ))}
+      </div>
+
+      {workshopTab === 'prequotes' && (
+        <div className="gildoni-card-stack">
+          <article className="gildoni-record">
+            <div><span>PRE-260918-014</span><h3>Camille Martin · Peugeot 208</h3><p>Voyant frein allumé et bruit métallique à faible vitesse.</p></div>
+            <div className="gildoni-record-side"><strong>186,40 €</strong><small>prédevis indicatif</small><button type="button" onClick={() => onFeature('workshop', 'review_prequote')}>Valider la revue atelier</button></div>
+          </article>
+          <article className="gildoni-record">
+            <div><span>PRE-260918-011</span><h3>Julien Robert · véhicule manuel</h3><p>Révision annuelle, filtres et contrôle général.</p></div>
+            <div className="gildoni-record-side"><strong>249,00 €</strong><small>déjà revu</small><button type="button" onClick={() => { setWorkshopTab('quotes'); onFeature('workshop', 'create_quote') }}>Créer le brouillon</button></div>
+          </article>
+        </div>
+      )}
+
+      {workshopTab === 'quotes' && (
+        <div className="gildoni-card-stack">
+          {quotes.map((quote, index) => (
+            <article className="gildoni-record" key={quote.number}>
+              <div><span>{quote.number}</span><h3>{index === 0 ? 'Peugeot 208 · freinage' : 'Renault Clio · contrôle freinage'}</h3><p>Statut : <strong>{quote.status}</strong></p></div>
+              <div className="gildoni-record-side"><strong>{quote.total}</strong><small>TTC</small>{index === 0 ? <button type="button" disabled={quoteSent} onClick={() => { setQuoteSent(true); onFeature('workshop', 'send_quote') }}>{quoteSent ? '✓ Envoyé (simulation)' : 'Envoyer au client'}</button> : <button type="button" onClick={() => onFeature('workshop', 'generate_pdf')}>Générer le PDF</button>}</div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {workshopTab === 'repairs' && (
+        <div className="gildoni-card-stack">
+          <article className="gildoni-repair-card">
+            <div className="gildoni-repair-head"><div><span>Ordre #1042</span><h3>Peugeot 208 · AB-123-CD</h3></div><strong>{repairProgress < 75 ? 'Réparation' : 'Contrôle sécurité'}</strong></div>
+            <div className="gildoni-progress"><i style={{ width: `${repairProgress}%` }} /></div>
+            <div className="gildoni-repair-meta"><span>Pièces commandées ✓</span><span>Intervention en cours</span><span>Livraison prévue 17:30</span></div>
+            <button type="button" disabled={repairProgress >= 78} onClick={() => { setRepairProgress(78); onFeature('workshop', 'advance_repair') }}>{repairProgress >= 78 ? '✓ Contrôle sécurité validé' : 'Valider : contrôle sécurité'}</button>
+          </article>
+          <article className="gildoni-repair-card">
+            <div className="gildoni-repair-head"><div><span>Ordre #1038</span><h3>Renault Clio · GH-456-IJ</h3></div><strong>Prêt</strong></div>
+            <div className="gildoni-progress"><i style={{ width: '92%' }} /></div>
+            <div className="gildoni-repair-meta"><span>Réparation terminée ✓</span><span>Contrôle sécurité ✓</span><span>À remettre au client</span></div>
+          </article>
+        </div>
+      )}
+
+      {workshopTab === 'appointments' && (
+        <div className="gildoni-table-wrap">
+          <table className="gildoni-table">
+            <thead><tr><th>Heure</th><th>Véhicule</th><th>Motif</th><th>Statut</th></tr></thead>
+            <tbody>{GARAGE_JOBS.map(job => <tr key={job.time}><td>{job.time}</td><td>{job.car}</td><td>{job.job}</td><td><span className="gildoni-status">{job.status}</span></td></tr>)}</tbody>
+          </table>
+        </div>
+      )}
     </section>
   )
 
-  if (feature === 'interventions') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Dossier fictif</span><h2>Peugeot 208 · AB-123-CD</h2></div><strong>84 200 km</strong></div>
-      <div className="showroom-split"><div className="showroom-checklist"><label><input type="checkbox" defaultChecked /> Vidange moteur</label><label><input type="checkbox" defaultChecked /> Filtre à huile</label><label><input type="checkbox" /> Contrôle plaquettes</label><label><input type="checkbox" /> Pression pneus</label></div><div className="showroom-callout"><span>Estimation atelier</span><strong>1 h 15 restante</strong><p>Pièces disponibles · aucun blocage détecté.</p></div></div>
+  if (feature === 'client') return (
+    <section className="gildoni-showcase">
+      <div className="gildoni-page-head">
+        <div><span>Espace sécurisé</span><h1>Mon garage</h1><p>Véhicules, devis, réparations et rendez-vous.</p></div>
+        <div className="gildoni-role-badge">Espace : <strong>client</strong></div>
+      </div>
+
+      <div className="gildoni-tabs">
+        {[
+          ['vehicles', 'Mes véhicules'],
+          ['quotes', 'Mes devis'],
+          ['repairs', 'Suivi des réparations'],
+          ['appointments', 'Rendez-vous']
+        ].map(([id, label]) => (
+          <button key={id} type="button" className={clientTab === id ? 'active' : ''} onClick={() => { setClientTab(id as typeof clientTab); onFeature('client', `tab_${id}`) }}>{label}</button>
+        ))}
+      </div>
+
+      {clientTab === 'vehicles' && (
+        <div className="gildoni-vehicle-grid">
+          {vehicles.map(vehicle => <article key={vehicle.registration}><span>{vehicle.registration}</span><h3>{vehicle.name}</h3><p>{vehicle.mileage}</p><small>Véhicule actif · données fictives</small></article>)}
+          <button type="button" className="gildoni-add-card" onClick={() => onFeature('client', 'add_vehicle')}><strong>＋</strong><span>Ajouter un véhicule</span></button>
+        </div>
+      )}
+
+      {clientTab === 'quotes' && (
+        <div className="gildoni-card-stack">
+          <article className="gildoni-record">
+            <div><span>DEV-2026-041</span><h3>Peugeot 208 · freinage</h3><p>Devis envoyé · décision attendue.</p></div>
+            <div className="gildoni-record-side"><strong>286,80 €</strong><div className="gildoni-decision-row"><button type="button" onClick={() => onFeature('client', 'accept_quote')}>Accepter</button><button type="button" className="danger" onClick={() => onFeature('client', 'refuse_quote')}>Refuser</button></div></div>
+          </article>
+        </div>
+      )}
+
+      {clientTab === 'repairs' && (
+        <div className="gildoni-repair-card">
+          <div className="gildoni-repair-head"><div><span>Ordre #1042</span><h3>Peugeot 208 · AB-123-CD</h3></div><strong>Réparation</strong></div>
+          <div className="gildoni-progress"><i style={{ width: '52%' }} /></div>
+          <div className="gildoni-repair-meta"><span>Devis accepté ✓</span><span>Pièces reçues ✓</span><span>Réparation en cours</span></div>
+        </div>
+      )}
+
+      {clientTab === 'appointments' && (
+        <div className="gildoni-form-card">
+          <h3>Demander un rendez-vous</h3>
+          <div className="gildoni-form-grid"><label>Véhicule<select defaultValue="AB-123-CD"><option>AB-123-CD · Peugeot 208</option></select></label><label>Jour souhaité<input type="date" defaultValue="2026-09-22" /></label><label>Créneau<select defaultValue="10:00"><option value="10:00">10 h 00</option><option value="14:00">14 h 00</option></select></label><label>Motif<input defaultValue="Contrôle freinage" /></label></div>
+          <button type="button" onClick={() => onFeature('client', 'request_appointment')}>Demander ce rendez-vous</button>
+        </div>
+      )}
     </section>
   )
 
-  if (feature === 'quotes') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Devis fictif #D-2048</span><h2>Renault Clio · freinage</h2></div><strong>{quoteValidated ? 'Validé (simulation)' : 'En attente'}</strong></div>
-      <div className="showroom-invoice"><div><span>Plaquettes avant</span><strong>68 €</strong></div><div><span>Main-d’œuvre</span><strong>56 €</strong></div><div><span>Contrôle / essai</span><strong>20 €</strong></div><div className="total"><span>Total TTC</span><strong>144 €</strong></div></div>
-      <button className="showroom-action" type="button" disabled={quoteValidated} onClick={() => { setQuoteValidated(true); onFeature('quotes', 'simulate_quote_approval') }}>{quoteValidated ? '✓ Validation simulée' : 'Simuler la validation du devis'}</button>
-      <p className="showroom-disclaimer">Démonstration uniquement : aucun devis réel n’est envoyé ou signé.</p>
+  if (feature === 'admin') return (
+    <section className="gildoni-showcase">
+      <div className="gildoni-page-head">
+        <div><span>Pilotage interne</span><h1>Administration et gestion</h1><p>Facturation, règlements et comptes.</p></div>
+        <div className="gildoni-role-badge">Espace : <strong>admin</strong></div>
+      </div>
+
+      <div className="gildoni-metrics">
+        <div><span>Facturé TTC</span><strong>12 480 €</strong></div>
+        <div><span>Encaissé</span><strong>10 936 €</strong></div>
+        <div><span>Reste à payer</span><strong>1 544 €</strong></div>
+      </div>
+      <p className="gildoni-caption">Outil de gestion interne — démonstration, ne remplace pas une comptabilité légale certifiée.</p>
+
+      <div className="gildoni-admin-grid">
+        <div className="gildoni-panel">
+          <span className="gildoni-section-label">Comptes</span>
+          <table className="gildoni-table compact"><thead><tr><th>Utilisateur</th><th>Rôle</th><th>État</th></tr></thead><tbody><tr><td>atelier.demo</td><td>atelier</td><td>Actif</td></tr><tr><td>client.demo</td><td>client</td><td>Actif</td></tr><tr><td>admin.demo</td><td>admin</td><td>Actif</td></tr></tbody></table>
+        </div>
+        <div className="gildoni-panel">
+          <span className="gildoni-section-label">Factures et règlements</span>
+          <div className="gildoni-invoice-row"><div><strong>FAC-2026-087</strong><span>286,80 € · 142,80 € restant</span></div><button type="button" disabled={paymentSaved} onClick={() => { setPaymentSaved(true); onFeature('admin', 'save_payment') }}>{paymentSaved ? '✓ Règlement simulé' : 'Enregistrer 142,80 €'}</button></div>
+          <div className="gildoni-invoice-row"><div><strong>FAC-2026-083</strong><span>144,00 € · réglée</span></div><b>Payée</b></div>
+        </div>
+      </div>
     </section>
   )
 
   return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Atelier fictif</span><h2>Vue opérationnelle</h2></div><strong>Jeudi · 08:42</strong></div>
-      <div className="showroom-stats"><Stat label="Véhicules aujourd’hui" value="7" note="4 en atelier" /><Stat label="CA prévu" value="1 840 €" note="6 devis validés" /><Stat label="Retards" value="1" note="pièce à 14:00" /><Stat label="Satisfaction" value="4.8/5" note="30 derniers avis fictifs" /></div>
-      <div className="showroom-split"><div><span className="showroom-section-label">Maintenant</span>{GARAGE_JOBS.slice(0, 3).map(job => <button className="showroom-job" key={job.time} type="button" onClick={() => onFeature('planning', 'open_job')}><time>{job.time}</time><div><strong>{job.car}</strong><small>{job.job}</small></div><span>{job.status}</span></button>)}</div><div className="showroom-callout"><span>Attention</span><strong>Clio · contrôle freinage</strong><p>Un devis attend une validation simulée.</p><button type="button" onClick={() => onFeature('quotes', 'open_quote')}>Ouvrir le devis</button></div></div>
+    <section className="gildoni-showcase">
+      <div className="gildoni-public-hero">
+        <span>GARAGE GILDONI</span>
+        <h1>Garage <strong>Gildoni</strong></h1>
+        <p>Plus de 30 ans d’expérience automobile à Ascros.</p>
+        <small>Du lundi au samedi · 8 h–20 h · démonstration événementielle</small>
+      </div>
+
+      <div className="gildoni-public-layout">
+        <div className="gildoni-info-column">
+          <span className="gildoni-section-label">Un atelier proche de vous</span>
+          <h2>Entretien et réparation toutes marques.</h2>
+          <p>Entretien, diagnostic, freinage, pneumatiques et réparations dans un même parcours numérique.</p>
+          <div className="gildoni-address-box">📍 Ascros · adresse masquée dans la démo</div>
+          <div className="gildoni-notice">Le prédevis est indicatif. Les prix sont confirmés par l’atelier après contrôle.</div>
+          {prequoteSent && <div className="gildoni-success"><strong>Prédevis PRE-260918-014 enregistré</strong><span>Estimation TTC · 186,40 €</span><small>Diagnostic fictif : freinage · contrôle atelier requis</small></div>}
+        </div>
+
+        <div className="gildoni-form-card">
+          <h2>Demander un prédevis</h2>
+          <div className="gildoni-form-grid">
+            <label>Nom et prénom<input defaultValue="Camille Martin" /></label>
+            <label>Email<input defaultValue="camille@example.test" /></label>
+            <label>Téléphone<input defaultValue="06 00 00 00 00" /></label>
+            <label>Immatriculation<input defaultValue="AB-123-CD" /></label>
+            <label>Marque<input defaultValue="Peugeot" /></label>
+            <label>Modèle<input defaultValue="208" /></label>
+            <label>Kilométrage<input defaultValue="84200" /></label>
+            <label className="wide">Décrivez les symptômes<textarea defaultValue="Voyant frein allumé et bruit métallique à faible vitesse." /></label>
+          </div>
+          <label className="gildoni-consent"><input type="checkbox" defaultChecked /> J’accepte l’utilisation de ces informations pour traiter cette démonstration.</label>
+          <button type="button" disabled={prequoteSent} onClick={() => { setPrequoteSent(true); onFeature('dashboard', 'submit_prequote') }}>{prequoteSent ? '✓ Estimation obtenue' : 'Obtenir mon estimation'}</button>
+        </div>
+      </div>
     </section>
   )
 }
