@@ -1,0 +1,41 @@
+services:
+  postgres-loadtest:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: brocai_loadtest
+      POSTGRES_USER: brocai_loadtest
+      POSTGRES_PASSWORD: brocai_loadtest
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U brocai_loadtest -d brocai_loadtest"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - loadtest_postgres_data:/var/lib/postgresql/data
+
+  backend-loadtest:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://brocai_loadtest:brocai_loadtest@postgres-loadtest:5432/brocai_loadtest
+      CORS_ORIGINS: http://localhost:18000
+      UPLOAD_DIR: /app/data/uploads
+      MAX_UPLOAD_MB: 8
+      AI_PROVIDER: mock
+      MAX_AI_IN_FLIGHT: ${LOADTEST_MAX_AI_IN_FLIGHT:-20}
+      AI_JOB_TIMEOUT_SECONDS: ${LOADTEST_AI_JOB_TIMEOUT_SECONDS:-60}
+      AI_WORKER_POLL_MS: ${LOADTEST_AI_WORKER_POLL_MS:-100}
+      AI_JOB_RETENTION_HOURS: 12
+      AI_MOCK_DELAY_MS: ${AI_MOCK_DELAY_MS:-1500}
+      AI_MOCK_FORCE_ERROR: ${AI_MOCK_FORCE_ERROR:-0}
+      ADMIN_TOKEN: ${LOADTEST_ADMIN_TOKEN:-loadtest-only}
+    depends_on:
+      postgres-loadtest:
+        condition: service_healthy
+    ports:
+      - "${LOADTEST_PORT:-18000}:8000"
+    volumes:
+      - loadtest_uploads:/app/data/uploads
+
+volumes:
+  loadtest_postgres_data:
+  loadtest_uploads:

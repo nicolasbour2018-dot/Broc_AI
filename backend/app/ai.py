@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from pathlib import Path
 from typing import Literal, Protocol
 
@@ -64,7 +65,22 @@ MIME_BY_SUFFIX = {
 class MockVisionProvider:
     """Local development provider. Its output is always labelled as a mock."""
 
+    @staticmethod
+    def _simulate_test_conditions() -> None:
+        """Optional load-test controls; inert unless explicitly enabled."""
+        try:
+            delay_ms = int(os.getenv("AI_MOCK_DELAY_MS", "0"))
+        except ValueError:
+            delay_ms = 0
+        delay_ms = max(0, min(30_000, delay_ms))
+        if delay_ms:
+            time.sleep(delay_ms / 1000)
+
+        if os.getenv("AI_MOCK_FORCE_ERROR", "").strip().lower() in {"1", "true", "yes", "on"}:
+            raise RuntimeError("Erreur mock forcée pour test de résilience.")
+
     def analyze_for_listing(self, image_key: str, original_filename: str | None) -> SellerAnalysis:
+        self._simulate_test_conditions()
         stem = Path(original_filename or "objet").stem.replace("_", " ").replace("-", " ").strip()
         title = stem.capitalize() if stem and stem.lower() not in {"image", "img", "photo"} else "Objet de brocante"
         return SellerAnalysis(
@@ -80,6 +96,7 @@ class MockVisionProvider:
         )
 
     def analyze_object(self, image_key: str) -> AssistantObjectAnalysis:
+        self._simulate_test_conditions()
         return AssistantObjectAnalysis(
             name="Objet de brocante",
             category=ListingCategory.OTHER,
@@ -99,6 +116,7 @@ class MockVisionProvider:
         question: str | None,
         displayed_price_eur: float | None,
     ) -> str:
+        self._simulate_test_conditions()
         if question_type == "good_deal":
             return "Mode développement : compare le prix affiché à la fourchette indicative, puis vérifie surtout l’état réel de l’objet."
         if question_type == "tell_more":
