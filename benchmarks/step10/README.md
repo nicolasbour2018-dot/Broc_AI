@@ -16,7 +16,7 @@ The benchmark is intentionally small. Its purpose is to compare candidate models
 
 Real benchmark photos must stay local under:
 
-`.agent-system/benchmark/assets/`
+`benchmarks/step10/assets/`
 
 Expected filenames for the first pass:
 
@@ -27,6 +27,30 @@ Expected filenames for the first pass:
 These files are local benchmark assets and are not versioned.
 
 The same three images are reused for `seller` and `assistant` so model/task differences can be compared without changing the visual input.
+
+Prepare the local directory without making any API call:
+
+```bash
+python3 scripts/benchmark_ai.py --prepare-assets
+```
+
+Then place the three photos under `benchmarks/step10/assets/` with the exact filenames above.
+
+Generated plans and benchmark results stay local under:
+
+`benchmarks/step10/results/`
+
+Both local directories are ignored by Git. `.agent-system/` remains reserved for the execution harness.
+
+## Local credentials
+
+The preflight can load simple `KEY=VALUE` entries from the project `.env` without adding a dependency and without printing secret values. Existing shell environment variables take precedence over values from the file.
+
+```bash
+python3 scripts/benchmark_ai.py --preflight
+```
+
+An alternative local env file can be selected with `--env-file`. The preflight reports only `PRESENT` or `MISSING`.
 
 ## Corpus design
 
@@ -61,6 +85,6 @@ There is deliberately no automatic global quality score. A fast or cheap model m
 
 ## Current phase
 
-Step 10.2.2 prepares the corpus and evaluation rubric only.
+Step 10.2.4-A prepares local assets and credential discovery before the first real pilot benchmark.
 
-No API call is required at this stage.
+No API call is performed by `--prepare-assets` or `--preflight`.

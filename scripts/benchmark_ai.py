@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 VALID_TASKS = {"seller", "assistant", "fun"}
+DEFAULT_ASSETS_DIR = Path("benchmarks/step10/assets")
+DEFAULT_RESULTS_DIR = Path("benchmarks/step10/results")
 
 
 def load_json(path: Path) -> Any:
@@ -17,6 +19,47 @@ def load_json(path: Path) -> Any:
         raise SystemExit(f"Fichier introuvable : {path}")
     except json.JSONDecodeError as exc:
         raise SystemExit(f"JSON invalide dans {path} : {exc}")
+
+
+
+def load_env_file(path: Path) -> int:
+    """Load simple KEY=VALUE entries without overriding existing variables."""
+    if not path.is_file():
+        return 0
+
+    loaded = 0
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+
+        if line.startswith("export "):
+            line = line[7:].strip()
+
+        if "=" not in line:
+            raise SystemExit(
+                f"Ligne .env invalide {path}:{line_number} "
+                "(format attendu KEY=VALUE)."
+            )
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if not key:
+            raise SystemExit(f"Clé .env vide {path}:{line_number}.")
+
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+
+        if key not in os.environ:
+            os.environ[key] = value
+            loaded += 1
+
+    return loaded
 
 
 def load_models(path: Path) -> list[dict[str, Any]]:
@@ -90,13 +133,13 @@ def build_plan(
 
 
 def write_plan(plan: list[dict[str, Any]], output: Path) -> None:
-    allowed_root = Path(".agent-system/benchmark").resolve()
+    allowed_root = DEFAULT_RESULTS_DIR.resolve()
     resolved_output = output.resolve()
 
-    if allowed_root not in resolved_output.parents:
+    if allowed_root != resolved_output.parent and allowed_root not in resolved_output.parents:
         raise SystemExit(
             "Les résultats du benchmark doivent rester sous "
-            ".agent-system/benchmark/"
+            "benchmarks/step10/results/"
         )
 
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -106,7 +149,40 @@ def write_plan(plan: list[dict[str, Any]], output: Path) -> None:
     )
 
 
-def preflight(models: list[dict[str, Any]], cases: list[dict[str, Any]]) -> bool:
+
+def prepare_assets(cases: list[dict[str, Any]]) -> None:
+    DEFAULT_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
+
+    expected_paths = sorted(
+        {
+            image_path
+            for case in cases
+            for image_path in case.get("image_paths", [])
+        }
+    )
+
+    print(f"Dossier assets prêt : {DEFAULT_ASSETS_DIR}")
+    print("Photos attendues :")
+    for raw_path in expected_paths:
+        print(f"- {Path(raw_path).name}")
+    print("API calls : 0")
+
+
+def preflight(
+    models: list[dict[str, Any]],
+    cases: list[dict[str, Any]],
+    env_file: Path,
+) -> bool:
+    loaded_count = load_env_file(env_file)
+
+    print("=== ENV ===")
+    if env_file.is_file():
+        print(f"Fichier chargé : {env_file} ({loaded_count} variable(s) ajoutée(s))")
+    else:
+        print(f"Fichier absent : {env_file}")
+    print("Valeurs secrètes affichées : 0")
+
+    print()
     print("=== MODEL ACCESS ===")
     missing_keys = False
 
@@ -158,7 +234,17 @@ def main() -> int:
     parser.add_argument("--cases", default="benchmarks/step10/cases.json")
     parser.add_argument(
         "--output",
-        default=".agent-system/benchmark/step10-plan.json",
+        default="benchmarks/step10/results/step10-plan.json",
+    )
+    parser.add_argument(
+        "--env-file",
+        default=".env",
+        help="Fichier local KEY=VALUE à charger pour le preflight.",
+    )
+    parser.add_argument(
+        "--prepare-assets",
+        action="store_true",
+        help="Crée le dossier local ignoré et liste les photos attendues.",
     )
     parser.add_argument(
         "--preflight",
@@ -177,9 +263,14 @@ def main() -> int:
     print(f"Combinaisons planifiées : {len(plan)}")
     print(f"Plan : {args.output}")
 
+    if args.prepare_assets:
+        print()
+        prepare_assets(cases)
+        return 0
+
     if args.preflight:
         print()
-        ready = preflight(models, cases)
+        ready = preflight(models, cases, Path(args.env_file))
         return 0 if ready else 1
 
     print("API calls : 0")
