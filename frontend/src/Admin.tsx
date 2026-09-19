@@ -102,7 +102,7 @@ export default function Admin({ goHome }: { goHome: () => void }) {
       {error && <p className="error">{error}</p>}
 
       <section className="admin-grid">
-        <article className="admin-card"><span>Service</span><strong className="admin-ok">{data.service.status === 'ok' ? 'OK' : data.service.status}</strong><small>PostgreSQL {data.service.database}</small></article>
+        <article className="admin-card"><span>Service</span><strong className="admin-ok">{data.service.status === 'ok' ? 'OK' : data.service.status}</strong><small>PostgreSQL {data.service.database} · IA {data.service.routing_mode}</small></article>
         <article className="admin-card"><span>Queue</span><strong>{data.queue.queued}</strong><small>{data.queue.running} en cours / {data.queue.max_in_flight} max</small></article>
         <article className="admin-card"><span>Appels IA</span><strong>{data.ai.total_calls}</strong><small>{data.ai.last_hour_calls} sur la dernière heure</small></article>
         <article className="admin-card"><span>Latence IA récente</span><strong>{ms(data.ai.average_latency_ms)}</strong><small>{data.ai.recent_sample_size} job(s) échantillonné(s)</small></article>
@@ -119,7 +119,7 @@ export default function Admin({ goHome }: { goHome: () => void }) {
 
       <section className="admin-section">
         <div className="admin-section-title"><div><p className="eyebrow">Derniers jobs IA</p><h3>Activité récente</h3></div><small>Mise à jour automatique toutes les 5 s</small></div>
-        {data.recent_jobs.length === 0 ? <p className="muted">Aucun job terminé pour le moment.</p> : <div className="admin-job-list">{data.recent_jobs.map(job => <div key={job.id} className="admin-job"><span>{job.feature}</span><strong>{job.status}</strong><span>{ms(job.duration_ms)}</span><span>attente {ms(job.queue_wait_ms)}</span></div>)}</div>}
+        {data.recent_jobs.length === 0 ? <p className="muted">Aucun job terminé pour le moment.</p> : <div className="admin-job-list">{data.recent_jobs.map(job => <div key={job.id} className="admin-job"><span>{job.feature}</span><strong>{job.status}</strong><span>{job.error_code || '—'}</span><span>{ms(job.duration_ms)}</span><span>attente {ms(job.queue_wait_ms)}</span></div>)}</div>}
       </section>
 
       <section className="admin-section">

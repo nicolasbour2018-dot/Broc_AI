@@ -1,13 +1,15 @@
 import os
 import json
+import logging
 import time
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from .categories import LISTING_CATEGORIES, ListingCategory
 from .config import settings
+from .qwen import QwenVisionProvider
 from .schemas import (
     AssistantAnalysisBundle,
     AssistantObjectAnalysis,
@@ -639,12 +641,258 @@ Retourne exactement une création courte :
         return result
 
 
+logger = logging.getLogger(__name__)
+
+
+class ForcedPrimaryFailure(RuntimeError):
+    pass
+
+
+def _should_use_technical_fallback(exc: Exception) -> bool:
+    if isinstance(exc, ForcedPrimaryFailure):
+        return True
+    if isinstance(exc, (TimeoutError, ConnectionError, json.JSONDecodeError, ValidationError)):
+        return True
+
+    status_code = getattr(exc, "status_code", None)
+    if status_code is None:
+        status_code = getattr(exc, "code", None)
+    if status_code in {408, 429, 500, 502, 503, 504}:
+        return True
+
+    class_name = type(exc).__name__.lower()
+    module_name = type(exc).__module__.lower()
+    text = str(exc).lower()
+    technical_markers = (
+        "timeout",
+        "deadline",
+        "connection",
+        "network",
+        "temporarily unavailable",
+        "service unavailable",
+        "resource exhausted",
+        "rate limit",
+        "too many requests",
+    )
+    if any(marker in class_name or marker in module_name or marker in text for marker in technical_markers):
+        return True
+
+    unusable_markers = (
+        "gemini n'a renvoyé aucune",
+        "gemini n'a renvoyé aucun",
+        "validation error",
+        "invalid json",
+    )
+    return any(marker in text for marker in unusable_markers)
+
+
+class AiRoutingError(RuntimeError):
+    def __init__(
+        self,
+        error_code: str,
+        public_message: str,
+        *,
+        primary_code: str | None = None,
+    ) -> None:
+        super().__init__(public_message)
+        self.error_code = error_code
+        self.public_message = public_message
+        self.primary_code = primary_code
+
+
+def _status_code(exc: Exception) -> int | None:
+    value = getattr(exc, "status_code", None)
+    if value is None:
+        value = getattr(exc, "code", None)
+    return value if isinstance(value, int) else None
+
+
+def _primary_error_code(exc: Exception) -> str:
+    status_code = _status_code(exc)
+    if status_code == 400:
+        return "AI-PRIMARY-400"
+    if status_code == 401:
+        return "AI-PRIMARY-401"
+    if status_code == 403:
+        return "AI-PRIMARY-403"
+    if status_code == 429:
+        return "AI-PRIMARY-429"
+    if status_code in {408, 504}:
+        return "AI-PRIMARY-TIMEOUT"
+    if status_code is not None and 500 <= status_code <= 599:
+        return "AI-PRIMARY-5XX"
+
+    text = str(exc).lower()
+    if "gemini_api_key" in text or "api key" in text:
+        return "AI-PRIMARY-CONFIG"
+    if "timeout" in text or "deadline" in text:
+        return "AI-PRIMARY-TIMEOUT"
+    if "connection" in text or "network" in text or "dns" in text:
+        return "AI-PRIMARY-NETWORK"
+    if isinstance(exc, (json.JSONDecodeError, ValidationError)) or "validation error" in text or "invalid json" in text:
+        return "AI-PRIMARY-INVALID-OUTPUT"
+    if "gemini n'a renvoyé aucune" in text or "gemini n'a renvoyé aucun" in text:
+        return "AI-PRIMARY-INVALID-OUTPUT"
+    if isinstance(exc, ForcedPrimaryFailure):
+        return "AI-PRIMARY-FORCED"
+    return "AI-PRIMARY-ERROR"
+
+
+def _fallback_error_code(exc: Exception) -> str:
+    text = str(exc).lower()
+    for status_code in (400, 401, 402, 403, 408, 429, 500, 502, 503, 504):
+        if f"http {status_code}" in text:
+            if status_code == 402:
+                return "AI-FALLBACK-402"
+            if status_code == 429:
+                return "AI-FALLBACK-429"
+            if status_code in {408, 504}:
+                return "AI-FALLBACK-TIMEOUT"
+            if 500 <= status_code <= 599:
+                return "AI-FALLBACK-5XX"
+            return f"AI-FALLBACK-{status_code}"
+    if "hf_token absent" in text:
+        return "AI-FALLBACK-CONFIG"
+    if "timeout" in text:
+        return "AI-FALLBACK-TIMEOUT"
+    if "réseau" in text or "network" in text or "connection" in text or "dns" in text:
+        return "AI-FALLBACK-NETWORK"
+    if "réponse inutilisable" in text or "réponse qwen vide" in text or "sans choices" in text:
+        return "AI-FALLBACK-INVALID-OUTPUT"
+    return "AI-FALLBACK-ERROR"
+
+
+class RoutedVisionProvider:
+    def __init__(self) -> None:
+        self._primary: GeminiVisionProvider | None = None
+        self._fallback: QwenVisionProvider | None = None
+
+    @property
+    def primary(self) -> GeminiVisionProvider:
+        if self._primary is None:
+            self._primary = GeminiVisionProvider()
+        return self._primary
+
+    @property
+    def fallback(self) -> QwenVisionProvider:
+        if self._fallback is None:
+            self._fallback = QwenVisionProvider()
+        return self._fallback
+
+    def _routing_mode(self) -> str:
+        mode = settings.ai_routing_mode.strip().lower()
+        if mode not in {"auto", "gemini_only", "qwen_only"}:
+            raise AiRoutingError(
+                "AI-ROUTING-CONFIG",
+                "Le routage IA du serveur est mal configuré.",
+            )
+        return mode
+
+    def _call_primary(self, operation: str, *args: Any) -> Any:
+        if settings.ai_force_primary_failure:
+            raise ForcedPrimaryFailure("Panne Gemini forcée pour test de routage.")
+        return getattr(self.primary, operation)(*args)
+
+    def _call_fallback(self, operation: str, *args: Any, primary_code: str | None = None) -> Any:
+        try:
+            return getattr(self.fallback, operation)(*args)
+        except Exception as exc:
+            code = _fallback_error_code(exc)
+            logger.error(
+                "AI fallback failed operation=%s code=%s primary_code=%s error=%s",
+                operation,
+                code,
+                primary_code,
+                type(exc).__name__,
+            )
+            raise AiRoutingError(
+                code,
+                "L’analyse IA est momentanément indisponible après le secours automatique.",
+                primary_code=primary_code,
+            ) from exc
+
+    def _route(self, operation: str, *args: Any) -> Any:
+        mode = self._routing_mode()
+
+        if mode == "qwen_only":
+            return self._call_fallback(operation, *args)
+
+        try:
+            return self._call_primary(operation, *args)
+        except Exception as exc:
+            primary_code = _primary_error_code(exc)
+            if mode == "gemini_only" or not _should_use_technical_fallback(exc):
+                logger.error(
+                    "AI primary failed without fallback operation=%s code=%s error=%s",
+                    operation,
+                    primary_code,
+                    type(exc).__name__,
+                )
+                raise AiRoutingError(
+                    primary_code,
+                    "Le service IA principal est indisponible ou mal configuré.",
+                ) from exc
+
+            logger.warning(
+                "AI primary failed; routing to Qwen fallback operation=%s code=%s",
+                operation,
+                primary_code,
+            )
+            return self._call_fallback(
+                operation,
+                *args,
+                primary_code=primary_code,
+            )
+
+    def analyze_for_listing(self, image_key: str, original_filename: str | None) -> SellerAnalysis:
+        return self._route("analyze_for_listing", image_key, original_filename)
+
+    def analyze_object(self, image_key: str) -> AssistantObjectAnalysis:
+        return self._route("analyze_object", image_key)
+
+    def analyze_assistant_bundle(self, image_key: str) -> AssistantAnalysisBundle:
+        return self._route("analyze_assistant_bundle", image_key)
+
+    def analyze_fun_bundle(self, image_key: str) -> FunAnalysisBundle:
+        return self._route("analyze_fun_bundle", image_key)
+
+    def answer_object_question(
+        self,
+        analysis: AssistantObjectAnalysis,
+        question_type: AssistantQuestionType,
+        question: str | None,
+        displayed_price_eur: float | None,
+    ) -> str:
+        return self._route(
+            "answer_object_question",
+            analysis,
+            question_type,
+            question,
+            displayed_price_eur,
+        )
+
+    def create_fun_wish(
+        self,
+        analysis: AssistantObjectAnalysis,
+        wish_type: FunWishType,
+        quest_type: FunQuestType | None,
+        image_keys: list[str],
+    ) -> FunCreativeDraft:
+        return self._route(
+            "create_fun_wish",
+            analysis,
+            wish_type,
+            quest_type,
+            image_keys,
+        )
+
+
 def get_vision_provider() -> VisionProvider:
     provider = settings.ai_provider.strip().lower()
     if provider == "mock":
         return MockVisionProvider()
     if provider == "gemini":
-        return GeminiVisionProvider()
+        return RoutedVisionProvider()
     raise RuntimeError(f"AI_PROVIDER inconnu : {settings.ai_provider!r}. Utilisez 'mock' ou 'gemini'.")
 
 

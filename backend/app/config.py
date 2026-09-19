@@ -15,7 +15,14 @@ class Settings(BaseSettings):
     image_webp_quality: int = 90
     ai_provider: str = "mock"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.5-flash-lite"
+    hf_token: str | None = None
+    hf_router_url: str = "https://router.huggingface.co/v1/chat/completions"
+    hf_qwen_model: str = "Qwen/Qwen3.5-35B-A3B:deepinfra"
+    hf_timeout_seconds: int = 30
+    hf_fallback_max_attempts: int = 3
+    ai_routing_mode: str = "auto"
+    ai_force_primary_failure: bool = False
     admin_token: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

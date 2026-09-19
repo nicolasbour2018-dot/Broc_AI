@@ -117,7 +117,9 @@ async function waitForAiJob<T>(initial: AiJob<T>, onProgress?: ProgressCallback)
   }
 
   if (job.status !== 'success' || !job.result) {
-    throw new Error(job.error_message || 'L’analyse n’est pas disponible pour le moment.')
+    const message = job.error_message || 'L’analyse n’est pas disponible pour le moment.'
+    const code = job.error_code ? ` · Code : ${job.error_code}` : ''
+    throw new Error(`${message}${code}`)
   }
   return job.result
 }

@@ -120,13 +120,18 @@ class AiQueueService:
             sid = job.session_id
 
         try:
-            # The Gemini client is configured with an HTTP timeout. Avoid a
-            # second asyncio timeout here: cancelling a Python worker thread
-            # cannot stop the underlying HTTP call safely.
+            # Provider clients own their HTTP timeout. Avoid a second asyncio
+            # timeout here: cancelling a Python worker thread cannot stop the
+            # underlying HTTP call safely.
             raw_result = await asyncio.to_thread(self._execute_job_sync, feature, payload, sid)
         except Exception as exc:
-            code = "timeout" if self._looks_like_timeout(exc) else "provider_error"
-            self._finish_error(job_id, code, self._friendly_error(exc), started)
+            code = getattr(exc, "error_code", None)
+            if not isinstance(code, str) or not code:
+                code = "AI-TIMEOUT" if self._looks_like_timeout(exc) else "AI-PROVIDER-ERROR"
+            message = getattr(exc, "public_message", None)
+            if not isinstance(message, str) or not message:
+                message = self._friendly_error(exc)
+            self._finish_error(job_id, code, message, started, exc=exc)
             self._cleanup_failed_upload(feature, payload)
             return
 
@@ -262,7 +267,7 @@ class AiQueueService:
 
         except Exception as exc:
             try:
-                self._finish_error(job_id, "persistence_error", "La réponse n’a pas pu être enregistrée. Réessaie.", started)
+                self._finish_error(job_id, "AI-PERSISTENCE-ERROR", "La réponse n’a pas pu être enregistrée. Réessaie.", started)
                 self._cleanup_failed_upload(feature, payload)
             except Exception:
                 # If PostgreSQL itself is unavailable, keep the running row and
@@ -328,23 +333,34 @@ class AiQueueService:
 
         raise RuntimeError(f"Type de tâche IA inconnu : {feature}")
 
-    def _finish_error(self, job_id: str, code: str, message: str, started: float) -> None:
+    def _finish_error(
+        self,
+        job_id: str,
+        code: str,
+        message: str,
+        started: float,
+        *,
+        exc: Exception | None = None,
+    ) -> None:
         duration_ms = round((perf_counter() - started) * 1000)
         with SessionLocal.begin() as db:
             job = db.get(AiJob, job_id)
             if job is None:
                 return
-            job.status = "timeout" if code == "timeout" else "error"
+            job.status = "timeout" if "TIMEOUT" in code.upper() else "error"
             job.error_code = code
             job.error_message = message
             job.completed_at = utcnow()
             job.duration_ms = duration_ms
-            self._emit(
-                db,
-                job.session_id,
-                "error_shown",
-                {"feature": job.feature, "job_id": job.id, "code": code},
-            )
+            properties: dict[str, Any] = {
+                "feature": job.feature,
+                "job_id": job.id,
+                "code": code,
+            }
+            primary_code = getattr(exc, "primary_code", None) if exc is not None else None
+            if isinstance(primary_code, str) and primary_code:
+                properties["primary_code"] = primary_code
+            self._emit(db, job.session_id, "error_shown", properties)
 
     @staticmethod
     def _cleanup_failed_upload(feature: str, payload: dict[str, Any]) -> None:

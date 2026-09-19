@@ -231,13 +231,18 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
                 "status": job.status,
                 "duration_ms": job.duration_ms,
                 "queue_wait_ms": _queue_wait_ms(job),
+                "error_code": job.error_code,
                 "completed_at": job.completed_at.isoformat() if job.completed_at else None,
             }
         )
 
     return {
         "generated_at": now.isoformat(),
-        "service": {"status": "ok", "database": "ok"},
+        "service": {
+            "status": "ok",
+            "database": "ok",
+            "routing_mode": settings.ai_routing_mode.strip().lower(),
+        },
         "queue": {
             "queued": queue_counts["queued"],
             "running": queue_counts["running"],

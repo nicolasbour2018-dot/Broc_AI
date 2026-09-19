@@ -103,7 +103,7 @@ export interface AiJob<T> extends AiJobProgress {
 
 export interface AdminMetrics {
   generated_at: string
-  service: { status: string; database: string }
+  service: { status: string; database: string; routing_mode: string }
   queue: { queued: number; running: number; max_in_flight: number }
   ai: {
     total_calls: number
@@ -143,6 +143,7 @@ export interface AdminMetrics {
     status: AiJobStatus
     duration_ms: number | null
     queue_wait_ms: number | null
+    error_code: string | null
     completed_at: string | null
   }>
 }
