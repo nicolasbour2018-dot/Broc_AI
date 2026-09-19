@@ -145,6 +145,8 @@ Le script prépare un clone indépendant dans `~/BrocAI-standby`, configure :
 
 La sync VPS → Mac se suspend automatiquement si le hostname public pointe vers le Mac, afin de ne jamais écraser les données produites pendant un failover.
 
+Les syncs et transitions partagent un verrou d'opération inter-processus. Une transition déjà demandée bloque toute nouvelle sync, attend la fin d'une sync active, puis conserve le verrou jusqu'à stabilisation de l'origine publique.
+
 ## 8. Actions disponibles
 
 La Console Ops expose uniquement :
@@ -164,13 +166,16 @@ Les opérations destructrices exigent une confirmation explicite côté client e
 
 ### Failover VPS → Mac
 
-1. vérifie que le DNS pointe vers le VPS ;
-2. exécute une sync finale ;
-3. vérifie `READY` sur le Mac ;
-4. vérifie le tunnel Mac ;
-5. bascule le CNAME vers le tunnel Mac ;
-6. vérifie `https://<PUBLIC_HOSTNAME>/health/ready` ;
-7. rollback DNS automatique vers le VPS si la validation publique échoue.
+1. acquiert le verrou de transition et attend la fin d'une éventuelle sync active ;
+2. vérifie que le DNS pointe vers le VPS ;
+3. arrête frontend et backend sur le VPS, en laissant PostgreSQL disponible ;
+4. exécute une sync finale depuis PostgreSQL et le stockage persistant d'uploads du VPS ;
+5. vérifie `READY` sur le Mac et le tunnel Mac ;
+6. bascule le CNAME vers le tunnel Mac ;
+7. vérifie `https://<PUBLIC_HOSTNAME>/health/ready` ;
+8. restaure le VPS comme standby non public.
+
+Avant la validation publique du Mac, toute erreur restaure les services et la route VPS, puis vérifie au mieux son état `READY`. Après cette validation, une erreur secondaire sur le standby VPS ne provoque plus de rollback du trafic.
 
 ### Failback Mac → VPS
 
@@ -183,9 +188,12 @@ Le failback est volontairement plus conservateur :
 5. restaure ces données sur le VPS ;
 6. redémarre et valide le VPS ;
 7. repointe le CNAME vers le tunnel VPS ;
-8. remet le Mac en standby.
+8. valide publiquement le VPS, ce qui constitue le point de commit ;
+9. remet le Mac en standby sans autoriser de rollback DNS après ce commit.
 
 Ainsi, les écritures faites pendant un failover ne sont pas perdues.
+
+Le control plane ne fixe pas de timeout de sous-processus pour `sync`, `failover` et `failback`, afin de laisser leurs traps terminer le cleanup ou le rollback. Les autres actions et le statut restent bornés. Le reboot VPS n'est déclaré réussi qu'après observation d'un nouvel identifiant de boot puis d'un état `READY`.
 
 ## 10. Critère de sortie 10.8
 
