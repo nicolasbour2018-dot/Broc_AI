@@ -48,6 +48,10 @@ chmod 600 "$CF_DIR/brocai-mac.yml" "$CF_DIR/brocai-ops.yml"
 
 CLOUDFLARED_BIN="$(command -v cloudflared)"
 PYTHON_BIN="$(command -v python3)"
+DOCKER_BIN="$(command -v docker)"
+DOCKER_DIR="$(dirname "$DOCKER_BIN")"
+CLOUDFLARED_DIR="$(dirname "$CLOUDFLARED_BIN")"
+LAUNCH_PATH="${DOCKER_DIR}:${CLOUDFLARED_DIR}:/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 OPS_ENV_ABS="$(cd "$(dirname "$OPS_ENV_FILE")" && pwd)/$(basename "$OPS_ENV_FILE")"
 
 write_agent() {
@@ -59,7 +63,7 @@ write_agent() {
 <plist version="1.0"><dict>
   <key>Label</key><string>${label}</string>
   <key>ProgramArguments</key><array><string>${program}</string>${args_xml}</array>
-  <key>EnvironmentVariables</key><dict><key>BROCAI_OPS_ENV_FILE</key><string>${OPS_ENV_ABS}</string></dict>
+  <key>EnvironmentVariables</key><dict><key>BROCAI_OPS_ENV_FILE</key><string>${OPS_ENV_ABS}</string><key>PATH</key><string>${LAUNCH_PATH}</string></dict>
   <key>RunAtLoad</key><true/>
   ${interval}
   <key>StandardOutPath</key><string>${STATE_DIR}/${label}.out.log</string>

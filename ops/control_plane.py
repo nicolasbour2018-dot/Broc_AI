@@ -47,12 +47,12 @@ ACTIONS: dict[str, tuple[str, str | None, int]] = {
 }
 
 
-def run_script(name: str, timeout: int) -> dict[str, Any]:
+def run_script(name: str, timeout: int, *args: str) -> dict[str, Any]:
     script = ROOT / "scripts" / name
     env = os.environ.copy()
     env["BROCAI_OPS_ENV_FILE"] = str(OPS_ENV_FILE)
     completed = subprocess.run(
-        [str(script)],
+        [str(script), *args],
         cwd=ROOT,
         env=env,
         capture_output=True,
@@ -114,7 +114,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self.authorized():
                 self.send_json(HTTPStatus.UNAUTHORIZED, {"detail": "Token Ops invalide."})
                 return
-            result = run_script("ops-status.sh", 30)
+            result = run_script("ops-status.sh", 30, "--json")
             if not result["ok"]:
                 self.send_json(HTTPStatus.BAD_GATEWAY, result)
                 return
