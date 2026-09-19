@@ -8,13 +8,25 @@ from pydantic import BaseModel, Field
 
 from .categories import LISTING_CATEGORIES, ListingCategory
 from .config import settings
-from .schemas import AssistantObjectAnalysis, AssistantQuestionType, FunCreativeDraft, FunQuestType, FunWishType, PriceRange, SellerAnalysis
+from .schemas import (
+    AssistantObjectAnalysis,
+    AssistantQuestionType,
+    FunAnalysisBundle,
+    FunCreativeBundle,
+    FunCreativeDraft,
+    FunQuestType,
+    FunWishType,
+    PriceRange,
+    SellerAnalysis,
+)
 
 
 class VisionProvider(Protocol):
     def analyze_for_listing(self, image_key: str, original_filename: str | None) -> SellerAnalysis: ...
 
     def analyze_object(self, image_key: str) -> AssistantObjectAnalysis: ...
+
+    def analyze_fun_bundle(self, image_key: str) -> FunAnalysisBundle: ...
 
     def answer_object_question(
         self,
@@ -58,6 +70,11 @@ class GeminiObjectAnalysis(BaseModel):
 
 class GeminiQuestionAnswer(BaseModel):
     answer: str = Field(min_length=1, max_length=900)
+
+
+class GeminiFunBundleDraft(BaseModel):
+    analysis: GeminiObjectAnalysis
+    fun: FunCreativeBundle
 
 
 MIME_BY_SUFFIX = {
@@ -115,6 +132,70 @@ class MockVisionProvider:
             confidence="low",
             caution="Cette analyse est un exemple local, pas une expertise de l’objet.",
             analysis_mode="mock-fallback",
+        )
+
+    def analyze_fun_bundle(self, image_key: str) -> FunAnalysisBundle:
+        self._simulate_test_conditions()
+        analysis = AssistantObjectAnalysis(
+            name="Objet de brocante",
+            category=ListingCategory.OTHER,
+            description="Analyse simulée en mode développement.",
+            context_note="Active Gemini pour obtenir une identification et un contexte visuel réels.",
+            estimated_price_eur=10.0,
+            price_range_eur=PriceRange(min=5.0, max=20.0),
+            confidence="low",
+            caution="Cette analyse est un exemple local, pas une expertise de l’objet.",
+            analysis_mode="mock-fallback",
+        )
+        name = analysis.name
+
+        def draft(
+            wish_type: FunWishType,
+            title: str,
+            subtitle: str,
+            story: str,
+            badge: str,
+        ) -> FunCreativeDraft:
+            return FunCreativeDraft(
+                wish_type=wish_type,
+                title=title,
+                subtitle=subtitle,
+                story=story,
+                badge=badge,
+            )
+
+        return FunAnalysisBundle(
+            analysis=analysis,
+            fun=FunCreativeBundle(
+                bring_to_life=draft(
+                    "bring_to_life",
+                    f"{name} prend vie",
+                    "Caractère : curieux, légèrement dramatique.",
+                    f"{name} s’est réveillé avec une seule idée : découvrir ce qui se passe de l’autre côté du stand. Sa réplique préférée : « On ne me range pas, on m’expose ! »",
+                    "Objet vivant",
+                ),
+                movie_star=draft(
+                    "movie_star",
+                    f"{name} — Le grand rôle",
+                    "Cette saison, la brocante a trouvé sa star.",
+                    f"Dans ce film totalement imaginaire, {name} vole la vedette à tout le monde et refuse catégoriquement les doublures. Sortie mondiale : juste après la fermeture de la brocante.",
+                    "Affiche fictive",
+                ),
+                imaginary_past=draft(
+                    "imaginary_past",
+                    f"Les vies secrètes de {name}",
+                    "Biographie 100 % inventée.",
+                    f"La légende raconte que {name} a traversé trois déménagements, un dimanche pluvieux et une négociation historique à 2 €. Rien de tout cela n’est vrai — mais il mérite clairement son autobiographie.",
+                    "Passé imaginaire",
+                ),
+                secret_power=draft(
+                    "secret_power",
+                    f"Le pouvoir de {name}",
+                    "Pouvoir : attirer les bonnes affaires à dix mètres.",
+                    "Son seul point faible ? Les étiquettes de prix de travers. Face à elles, même ses pouvoirs deviennent incontrôlables.",
+                    "Pouvoir débloqué",
+                ),
+            ),
         )
 
     def answer_object_question(
@@ -297,6 +378,73 @@ Si aucune catégorie ne convient clairement, choisis "Autre".
             caution=result.caution.strip(),
             analysis_mode=f"gemini:{settings.gemini_model}",
         )
+
+    def analyze_fun_bundle(self, image_key: str) -> FunAnalysisBundle:
+        from google.genai import types
+
+        prompt = """
+Tu prépares en UNE seule analyse l’expérience FunLab de BrocAI à partir d’une photo d’objet prise dans une brocante française.
+
+Commence par identifier prudemment l’objet :
+- nom probable ;
+- UNE catégorie choisie strictement dans cette liste : {categories} ;
+- description factuelle courte ;
+- contexte d’usage, de style ou d’époque uniquement si c’est raisonnablement inférable ;
+- estimation de prix de brocante et fourchette prudente si cela a du sens, sinon null ;
+- confiance low/medium/high ;
+- avertissement court sur l’incertitude principale.
+
+Puis prépare immédiatement quatre créations courtes et différentes, toutes cohérentes avec le même objet :
+- bring_to_life : transforme l’objet en personnage avec tempérament, mini-réplique et micro-histoire ;
+- movie_star : affiche de film imaginaire avec titre, slogan et mini-pitch ;
+- imaginary_past : biographie très courte et explicitement inventée ;
+- secret_power : super-pouvoir absurde, faiblesse ridicule et punchline.
+
+Contraintes :
+- n’invente jamais une marque, une authenticité, une origine, une matière, une époque ou une valeur comme un fait certain ;
+- tout élément biographique, héroïque, historique ou cinématographique doit être clairement imaginaire ;
+- chaque création contient title, subtitle, story, badge et le wish_type exact ;
+- reste court, drôle, bienveillant et compréhensible immédiatement ;
+- si aucune catégorie ne convient clairement, choisis "Autre".
+
+Retourne un seul objet structuré contenant exactement "analysis" et "fun".
+""".format(categories=" | ".join(LISTING_CATEGORIES)).strip()
+
+        response = self.client.models.generate_content(
+            model=settings.gemini_model,
+            contents=[prompt, self._image_part(image_key)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=GeminiFunBundleDraft,
+                temperature=0.55,
+            ),
+        )
+        if not response.text:
+            raise RuntimeError("Gemini n'a renvoyé aucun bundle FunLab exploitable.")
+
+        result = GeminiFunBundleDraft.model_validate_json(response.text)
+        price_range = None
+        if result.analysis.price_min_eur is not None and result.analysis.price_max_eur is not None:
+            low, high = sorted((result.analysis.price_min_eur, result.analysis.price_max_eur))
+            price_range = PriceRange(min=low, max=high)
+
+        analysis = AssistantObjectAnalysis(
+            name=result.analysis.name.strip(),
+            category=result.analysis.category,
+            description=result.analysis.description.strip(),
+            context_note=result.analysis.context_note.strip(),
+            estimated_price_eur=result.analysis.estimated_price_eur,
+            price_range_eur=price_range,
+            confidence=result.analysis.confidence,
+            caution=result.analysis.caution.strip(),
+            analysis_mode=f"gemini:{settings.gemini_model}",
+        )
+
+        result.fun.bring_to_life.wish_type = "bring_to_life"
+        result.fun.movie_star.wish_type = "movie_star"
+        result.fun.imaginary_past.wish_type = "imaginary_past"
+        result.fun.secret_power.wish_type = "secret_power"
+        return FunAnalysisBundle(analysis=analysis, fun=result.fun)
 
     def answer_object_question(
         self,

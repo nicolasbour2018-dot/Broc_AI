@@ -270,7 +270,7 @@ export async function analyzeFunPhoto(file: File, onProgress?: ProgressCallback)
 export async function requestFunWish(
   scanId: string,
   wishType: Exclude<FunWishType, 'fairground_quest'>,
-  onProgress?: ProgressCallback
+  _onProgress?: ProgressCallback
 ): Promise<FunWishResult> {
   const response = await fetch(`/api/fun/scans/${encodeURIComponent(scanId)}/wishes`, {
     method: 'POST',
@@ -278,8 +278,7 @@ export async function requestFunWish(
     body: JSON.stringify({ wish_type: wishType })
   })
   if (!response.ok) throw new Error(await parseError(response))
-  const job = await response.json() as AiJob<FunWishResult>
-  return waitForAiJob(job, onProgress)
+  return response.json() as Promise<FunWishResult>
 }
 
 export async function requestFunQuest(

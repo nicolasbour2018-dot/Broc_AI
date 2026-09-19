@@ -98,6 +98,23 @@ class FunCreativeDraft(BaseModel):
     badge: str = Field(min_length=1, max_length=80)
 
 
+class FunCreativeBundle(BaseModel):
+    bring_to_life: FunCreativeDraft
+    movie_star: FunCreativeDraft
+    imaginary_past: FunCreativeDraft
+    secret_power: FunCreativeDraft
+
+
+class FunAnalysisBundle(BaseModel):
+    analysis: AssistantObjectAnalysis
+    fun: FunCreativeBundle
+
+
+class FunWishOut(FunCreativeDraft):
+    wishes_remaining: int = Field(ge=0, le=3)
+    wish_index: int = Field(ge=1, le=3)
+
+
 class ListingCreate(BaseModel):
     image_key: str
     title: str = Field(min_length=1, max_length=160)

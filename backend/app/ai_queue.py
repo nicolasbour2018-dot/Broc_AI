@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .ai import vision_provider
 from .db import SessionLocal
 from .models import AiJob, AssistantScan, Event, utcnow
-from .schemas import AssistantObjectAnalysis, AssistantScanOut
+from .schemas import AssistantObjectAnalysis, AssistantScanOut, FunAnalysisBundle
 from .storage import delete_image
 
 TERMINAL_STATUSES = {"success", "error", "timeout"}
@@ -140,7 +140,7 @@ class AiQueueService:
 
                 # Persist feature-specific side effects in the same transaction as
                 # the terminal job status. This keeps restart recovery idempotent.
-                if feature in {"assistant", "fun_analyze"}:
+                if feature == "assistant":
                     analysis = AssistantObjectAnalysis.model_validate(result)
                     scan = AssistantScan(session_id=sid, analysis=analysis.model_dump(mode="json"), question_count=0)
                     db.add(scan)
@@ -153,11 +153,36 @@ class AiQueueService:
                     self._emit(
                         db,
                         sid,
-                        "object_scan_completed" if feature == "assistant" else "fun_object_ready",
+                        "object_scan_completed",
                         {
                             "category": analysis.category.value,
                             "confidence": analysis.confidence,
                             "mode": analysis.analysis_mode,
+                        },
+                    )
+
+                elif feature == "fun_analyze":
+                    bundle = FunAnalysisBundle.model_validate(result)
+                    analysis = bundle.analysis
+                    stored_analysis = analysis.model_dump(mode="json")
+                    stored_analysis["_fun_bundle"] = bundle.fun.model_dump(mode="json")
+                    scan = AssistantScan(session_id=sid, analysis=stored_analysis, question_count=0)
+                    db.add(scan)
+                    db.flush()
+                    result = AssistantScanOut(
+                        **analysis.model_dump(),
+                        scan_id=scan.id,
+                        questions_remaining=3,
+                    ).model_dump(mode="json")
+                    self._emit(
+                        db,
+                        sid,
+                        "fun_object_ready",
+                        {
+                            "category": analysis.category.value,
+                            "confidence": analysis.confidence,
+                            "mode": analysis.analysis_mode,
+                            "precomputed_wishes": 4,
                         },
                     )
 
@@ -251,9 +276,13 @@ class AiQueueService:
             analysis = vision_provider.analyze_for_listing(payload["image_key"], payload.get("filename"))
             return analysis.model_dump(mode="json")
 
-        if feature in {"assistant", "fun_analyze"}:
+        if feature == "assistant":
             analysis = vision_provider.analyze_object(payload["image_key"])
             return analysis.model_dump(mode="json")
+
+        if feature == "fun_analyze":
+            bundle = vision_provider.analyze_fun_bundle(payload["image_key"])
+            return bundle.model_dump(mode="json")
 
         if feature == "assistant_question":
             scan_id = payload["scan_id"]
