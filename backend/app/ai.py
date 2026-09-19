@@ -282,10 +282,11 @@ class MockVisionProvider:
 
 
 class GeminiVisionProvider:
-    def __init__(self) -> None:
+    def __init__(self, model_id: str | None = None) -> None:
         if not settings.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY est obligatoire quand AI_PROVIDER=gemini.")
 
+        self.model_id = model_id or settings.gemini_model
         from google import genai
 
         self.client = genai.Client(api_key=settings.gemini_api_key, http_options={"timeout": max(10, min(300, int(os.getenv("AI_JOB_TIMEOUT_SECONDS", "60")))) * 1000})
@@ -326,7 +327,7 @@ Le vendeur modifiera librement toutes les propositions avant publication.
 """.format(categories=" | ".join(LISTING_CATEGORIES)).strip()
 
         response = self.client.models.generate_content(
-            model=settings.gemini_model,
+            model=self.model_id,
             contents=[prompt, self._image_part(image_key)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -348,7 +349,7 @@ Le vendeur modifiera librement toutes les propositions avant publication.
             price_range_eur=PriceRange(min=price_min, max=price_max),
             confidence=result.confidence,
             fun_line=result.fun_line.strip() if result.fun_line else None,
-            analysis_mode=f"gemini:{settings.gemini_model}",
+            analysis_mode=f"gemini:{self.model_id}",
         )
 
     def analyze_object(self, image_key: str) -> AssistantObjectAnalysis:
@@ -372,7 +373,7 @@ Si aucune catégorie ne convient clairement, choisis "Autre".
 """.format(categories=" | ".join(LISTING_CATEGORIES)).strip()
 
         response = self.client.models.generate_content(
-            model=settings.gemini_model,
+            model=self.model_id,
             contents=[prompt, self._image_part(image_key)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -398,7 +399,7 @@ Si aucune catégorie ne convient clairement, choisis "Autre".
             price_range_eur=price_range,
             confidence=result.confidence,
             caution=result.caution.strip(),
-            analysis_mode=f"gemini:{settings.gemini_model}",
+            analysis_mode=f"gemini:{self.model_id}",
         )
 
     def analyze_assistant_bundle(self, image_key: str) -> AssistantAnalysisBundle:
@@ -432,7 +433,7 @@ Retourne un seul objet structuré contenant exactement "analysis" et "quick_repl
 """.format(categories=" | ".join(LISTING_CATEGORIES)).strip()
 
         response = self.client.models.generate_content(
-            model=settings.gemini_model,
+            model=self.model_id,
             contents=[prompt, self._image_part(image_key)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -458,7 +459,7 @@ Retourne un seul objet structuré contenant exactement "analysis" et "quick_repl
             price_range_eur=price_range,
             confidence=result.analysis.confidence,
             caution=result.analysis.caution.strip(),
-            analysis_mode=f"gemini:{settings.gemini_model}",
+            analysis_mode=f"gemini:{self.model_id}",
         )
         return AssistantAnalysisBundle(
             analysis=analysis,
@@ -497,7 +498,7 @@ Retourne un seul objet structuré contenant exactement "analysis" et "fun".
 """.format(categories=" | ".join(LISTING_CATEGORIES)).strip()
 
         response = self.client.models.generate_content(
-            model=settings.gemini_model,
+            model=self.model_id,
             contents=[prompt, self._image_part(image_key)],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -523,7 +524,7 @@ Retourne un seul objet structuré contenant exactement "analysis" et "fun".
             price_range_eur=price_range,
             confidence=result.analysis.confidence,
             caution=result.analysis.caution.strip(),
-            analysis_mode=f"gemini:{settings.gemini_model}",
+            analysis_mode=f"gemini:{self.model_id}",
         )
 
         result.fun.bring_to_life.wish_type = "bring_to_life"
@@ -562,7 +563,7 @@ Question libre : {question or 'aucune'}
 """.strip()
 
         response = self.client.models.generate_content(
-            model=settings.gemini_model,
+            model=self.model_id,
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -625,7 +626,7 @@ Retourne exactement une création courte :
             contents = [prompt, self._image_part(image_keys[0]), self._image_part(image_keys[1]), self._image_part(image_keys[2])]
 
         response = self.client.models.generate_content(
-            model=settings.gemini_model,
+            model=self.model_id,
             contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
