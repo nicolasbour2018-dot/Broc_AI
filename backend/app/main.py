@@ -24,7 +24,7 @@ from .schemas import (
     ListingUpdate,
 )
 from .storage import image_exists, save_image
-from .telemetry import health_router, router as telemetry_router
+from .telemetry import health_router, metric_snapshot_recorder, router as telemetry_router
 
 
 @asynccontextmanager
@@ -33,9 +33,11 @@ async def lifespan(_: FastAPI):
     init_db()
     ai_queue.cleanup_old_jobs()
     await ai_queue.start()
+    await metric_snapshot_recorder.start()
     try:
         yield
     finally:
+        await metric_snapshot_recorder.stop()
         await ai_queue.stop()
 
 

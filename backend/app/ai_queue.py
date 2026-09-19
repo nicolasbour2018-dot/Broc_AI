@@ -29,7 +29,7 @@ def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
 
 MAX_AI_IN_FLIGHT = _env_int("MAX_AI_IN_FLIGHT", 20, 1, 100)
 AI_WORKER_POLL_MS = _env_int("AI_WORKER_POLL_MS", 250, 50, 5000)
-AI_JOB_RETENTION_HOURS = _env_int("AI_JOB_RETENTION_HOURS", 12, 1, 168)
+AI_JOB_RETENTION_HOURS = _env_int("AI_JOB_RETENTION_HOURS", 168, 1, 168)
 MAX_FUN_IN_FLIGHT = _env_int(
     "MAX_FUN_IN_FLIGHT",
     max(1, MAX_AI_IN_FLIGHT // 4),
