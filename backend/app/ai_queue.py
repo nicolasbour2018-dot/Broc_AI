@@ -12,11 +12,12 @@ from sqlalchemy.orm import Session
 from .ai import vision_provider
 from .db import SessionLocal
 from .models import AiJob, AssistantScan, Event, utcnow
-from .schemas import AssistantObjectAnalysis, AssistantScanOut
+from .schemas import AssistantAnalysisBundle, AssistantObjectAnalysis, AssistantScanOut, FunAnalysisBundle
 from .storage import delete_image
 
 TERMINAL_STATUSES = {"success", "error", "timeout"}
 ACTIVE_STATUSES = {"queued", "running"}
+FUN_FEATURES = {"fun_analyze", "fun_wish"}
 
 def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
     try:
@@ -29,6 +30,12 @@ def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
 MAX_AI_IN_FLIGHT = _env_int("MAX_AI_IN_FLIGHT", 20, 1, 100)
 AI_WORKER_POLL_MS = _env_int("AI_WORKER_POLL_MS", 250, 50, 5000)
 AI_JOB_RETENTION_HOURS = _env_int("AI_JOB_RETENTION_HOURS", 12, 1, 168)
+MAX_FUN_IN_FLIGHT = _env_int(
+    "MAX_FUN_IN_FLIGHT",
+    max(1, MAX_AI_IN_FLIGHT // 4),
+    1,
+    MAX_AI_IN_FLIGHT,
+)
 
 
 
@@ -89,13 +96,43 @@ class AiQueueService:
 
     def _claim_next_job(self) -> str | None:
         with SessionLocal.begin() as db:
+            # CORE always gets first access to free worker slots. This prevents
+            # a FunLab burst from starving seller/assistant traffic.
             job = db.scalar(
                 select(AiJob)
-                .where(AiJob.status == "queued")
+                .where(
+                    AiJob.status == "queued",
+                    AiJob.feature.notin_(FUN_FEATURES),
+                )
                 .order_by(AiJob.created_at.asc(), AiJob.id.asc())
                 .with_for_update(skip_locked=True)
                 .limit(1)
             )
+
+            if job is None:
+                fun_in_flight = int(
+                    db.scalar(
+                        select(func.count(AiJob.id)).where(
+                            AiJob.status == "running",
+                            AiJob.feature.in_(FUN_FEATURES),
+                        )
+                    )
+                    or 0
+                )
+                if fun_in_flight >= MAX_FUN_IN_FLIGHT:
+                    return None
+
+                job = db.scalar(
+                    select(AiJob)
+                    .where(
+                        AiJob.status == "queued",
+                        AiJob.feature.in_(FUN_FEATURES),
+                    )
+                    .order_by(AiJob.created_at.asc(), AiJob.id.asc())
+                    .with_for_update(skip_locked=True)
+                    .limit(1)
+                )
+
             if job is None:
                 return None
             job.status = "running"
@@ -105,7 +142,12 @@ class AiQueueService:
                 db,
                 job.session_id,
                 "ai_analysis_started",
-                {"feature": job.feature, "job_id": job.id},
+                {
+                    "feature": job.feature,
+                    "job_id": job.id,
+                    "lane": "fun" if job.feature in FUN_FEATURES else "core",
+                    "max_fun_in_flight": MAX_FUN_IN_FLIGHT,
+                },
             )
             return job.id
 
@@ -120,13 +162,18 @@ class AiQueueService:
             sid = job.session_id
 
         try:
-            # The Gemini client is configured with an HTTP timeout. Avoid a
-            # second asyncio timeout here: cancelling a Python worker thread
-            # cannot stop the underlying HTTP call safely.
+            # Provider clients own their HTTP timeout. Avoid a second asyncio
+            # timeout here: cancelling a Python worker thread cannot stop the
+            # underlying HTTP call safely.
             raw_result = await asyncio.to_thread(self._execute_job_sync, feature, payload, sid)
         except Exception as exc:
-            code = "timeout" if self._looks_like_timeout(exc) else "provider_error"
-            self._finish_error(job_id, code, self._friendly_error(exc), started)
+            code = getattr(exc, "error_code", None)
+            if not isinstance(code, str) or not code:
+                code = "AI-TIMEOUT" if self._looks_like_timeout(exc) else "AI-PROVIDER-ERROR"
+            message = getattr(exc, "public_message", None)
+            if not isinstance(message, str) or not message:
+                message = self._friendly_error(exc)
+            self._finish_error(job_id, code, message, started, exc=exc)
             self._cleanup_failed_upload(feature, payload)
             return
 
@@ -140,9 +187,12 @@ class AiQueueService:
 
                 # Persist feature-specific side effects in the same transaction as
                 # the terminal job status. This keeps restart recovery idempotent.
-                if feature in {"assistant", "fun_analyze"}:
-                    analysis = AssistantObjectAnalysis.model_validate(result)
-                    scan = AssistantScan(session_id=sid, analysis=analysis.model_dump(mode="json"), question_count=0)
+                if feature == "assistant":
+                    bundle = AssistantAnalysisBundle.model_validate(result)
+                    analysis = bundle.analysis
+                    stored_analysis = analysis.model_dump(mode="json")
+                    stored_analysis["_assistant_quick_replies"] = bundle.quick_replies.model_dump(mode="json")
+                    scan = AssistantScan(session_id=sid, analysis=stored_analysis, question_count=0)
                     db.add(scan)
                     db.flush()
                     result = AssistantScanOut(
@@ -153,11 +203,37 @@ class AiQueueService:
                     self._emit(
                         db,
                         sid,
-                        "object_scan_completed" if feature == "assistant" else "fun_object_ready",
+                        "object_scan_completed",
                         {
                             "category": analysis.category.value,
                             "confidence": analysis.confidence,
                             "mode": analysis.analysis_mode,
+                            "precomputed_quick_replies": 3,
+                        },
+                    )
+
+                elif feature == "fun_analyze":
+                    bundle = FunAnalysisBundle.model_validate(result)
+                    analysis = bundle.analysis
+                    stored_analysis = analysis.model_dump(mode="json")
+                    stored_analysis["_fun_bundle"] = bundle.fun.model_dump(mode="json")
+                    scan = AssistantScan(session_id=sid, analysis=stored_analysis, question_count=0)
+                    db.add(scan)
+                    db.flush()
+                    result = AssistantScanOut(
+                        **analysis.model_dump(),
+                        scan_id=scan.id,
+                        questions_remaining=3,
+                    ).model_dump(mode="json")
+                    self._emit(
+                        db,
+                        sid,
+                        "fun_object_ready",
+                        {
+                            "category": analysis.category.value,
+                            "confidence": analysis.confidence,
+                            "mode": analysis.analysis_mode,
+                            "precomputed_wishes": 4,
                         },
                     )
 
@@ -180,6 +256,7 @@ class AiQueueService:
                             "question_type": payload["question_type"],
                             "question_index": scan.question_count,
                             "displayed_price_provided": payload.get("displayed_price_eur") is not None,
+                            "cached": False,
                         },
                     )
 
@@ -232,7 +309,7 @@ class AiQueueService:
 
         except Exception as exc:
             try:
-                self._finish_error(job_id, "persistence_error", "La réponse n’a pas pu être enregistrée. Réessaie.", started)
+                self._finish_error(job_id, "AI-PERSISTENCE-ERROR", "La réponse n’a pas pu être enregistrée. Réessaie.", started)
                 self._cleanup_failed_upload(feature, payload)
             except Exception:
                 # If PostgreSQL itself is unavailable, keep the running row and
@@ -251,9 +328,13 @@ class AiQueueService:
             analysis = vision_provider.analyze_for_listing(payload["image_key"], payload.get("filename"))
             return analysis.model_dump(mode="json")
 
-        if feature in {"assistant", "fun_analyze"}:
-            analysis = vision_provider.analyze_object(payload["image_key"])
-            return analysis.model_dump(mode="json")
+        if feature == "assistant":
+            bundle = vision_provider.analyze_assistant_bundle(payload["image_key"])
+            return bundle.model_dump(mode="json")
+
+        if feature == "fun_analyze":
+            bundle = vision_provider.analyze_fun_bundle(payload["image_key"])
+            return bundle.model_dump(mode="json")
 
         if feature == "assistant_question":
             scan_id = payload["scan_id"]
@@ -294,23 +375,34 @@ class AiQueueService:
 
         raise RuntimeError(f"Type de tâche IA inconnu : {feature}")
 
-    def _finish_error(self, job_id: str, code: str, message: str, started: float) -> None:
+    def _finish_error(
+        self,
+        job_id: str,
+        code: str,
+        message: str,
+        started: float,
+        *,
+        exc: Exception | None = None,
+    ) -> None:
         duration_ms = round((perf_counter() - started) * 1000)
         with SessionLocal.begin() as db:
             job = db.get(AiJob, job_id)
             if job is None:
                 return
-            job.status = "timeout" if code == "timeout" else "error"
+            job.status = "timeout" if "TIMEOUT" in code.upper() else "error"
             job.error_code = code
             job.error_message = message
             job.completed_at = utcnow()
             job.duration_ms = duration_ms
-            self._emit(
-                db,
-                job.session_id,
-                "error_shown",
-                {"feature": job.feature, "job_id": job.id, "code": code},
-            )
+            properties: dict[str, Any] = {
+                "feature": job.feature,
+                "job_id": job.id,
+                "code": code,
+            }
+            primary_code = getattr(exc, "primary_code", None) if exc is not None else None
+            if isinstance(primary_code, str) and primary_code:
+                properties["primary_code"] = primary_code
+            self._emit(db, job.session_id, "error_shown", properties)
 
     @staticmethod
     def _cleanup_failed_upload(feature: str, payload: dict[str, Any]) -> None:

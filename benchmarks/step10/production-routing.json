@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "locked_at_step": "10.2.4-F",
+  "production_target": "BrocAI brocante 2026-09-20",
+  "principal": {
+    "provider": "google",
+    "model_key": "gemini_baseline",
+    "model_id": "gemini-3.5-flash-lite",
+    "reason": "Best observed balance of latency, reliability and user-facing quality.",
+    "observed": {
+      "structured_success": "6/6",
+      "mean_latency_ms_success": 1877.2,
+      "estimated_paid_cost_usd_success_mean": 0.000844
+    }
+  },
+  "technical_fallback": {
+    "provider": "huggingface",
+    "route": "deepinfra",
+    "model_key": "qwen_hf",
+    "model_id": "Qwen/Qwen3.5-35B-A3B:deepinfra",
+    "trigger": [
+      "principal_timeout",
+      "principal_network_error",
+      "principal_http_429",
+      "principal_http_5xx",
+      "principal_unusable_response"
+    ],
+    "reason": "Independent non-Google fallback with acceptable qualitative benchmark results.",
+    "observed": {
+      "executed_success": "5/5",
+      "mean_latency_ms_success": 9251.6,
+      "estimated_paid_cost_usd_success_mean": 0.001399
+    },
+    "note": "One additional planned case was not executed because HF included credits were depleted; it is not a model failure."
+  },
+  "qualitative_scale_up": {
+    "provider": "google",
+    "model_key": "gemini_quality",
+    "model_id": "gemini-3.6-flash",
+    "trigger": {
+      "v1": "principal_response_valid AND confidence == low"
+    },
+    "not_for": [
+      "technical_failover",
+      "capacity_failover"
+    ],
+    "reason": "Potential quality uplift on difficult cases, with materially higher latency/cost.",
+    "observed": {
+      "structured_success": "4/6",
+      "mean_latency_ms_success": 6795.6,
+      "estimated_paid_cost_usd_success_mean": 0.004043
+    }
+  },
+  "degraded_mode": {
+    "trigger": "technical_fallback_failed_or_unavailable",
+    "mode": "non_ai",
+    "requirement": "Core flea-market flows remain usable without AI."
+  },
+  "not_selected": [
+    {
+      "model_key": "llama_scout_hf",
+      "reason": "Excellent observed cost but insufficiently consistent user-facing output quality for BrocAI V1."
+    }
+  ],
+  "future_rebenchmark": [
+    {
+      "candidate": "Qwen direct via Alibaba Model Studio",
+      "when": "Alibaba identity/service activation is available",
+      "purpose": "Measure direct-route latency, quality and cost; reconsider principal/fallback ordering at scale."
+    }
+  ]
+}

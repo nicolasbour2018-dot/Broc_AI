@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from .ai_queue import ACTIVE_STATUSES, ai_queue
 from .db import get_db
 from .models import AiJob, AssistantScan, Event
-from .schemas import AiJobOut, FunQuestType, FunWishRequest
+from .schemas import AiJobOut, FunCreativeBundle, FunQuestType, FunWishOut, FunWishRequest
 from .storage import delete_image, save_image
 
 router = APIRouter(prefix="/api/fun", tags=["funlab"])
@@ -70,28 +70,45 @@ async def analyze_fun_object(
     db: Session = Depends(get_db),
 ) -> AiJobOut:
     sid = _session_id(x_session_id)
-    image_key = await save_image(photo)
+    saved = await save_image(photo)
+    db.add(Event(session_id=sid, event_name="image_optimized", properties=saved.telemetry("fun_analyze")))
     db.add(Event(session_id=sid, event_name="fun_photo_submitted", properties={"content_type": photo.content_type}))
     return _enqueue(
         db,
         sid,
         "fun_analyze",
-        {"image_key": image_key, "content_type": photo.content_type},
+        {"image_key": saved.image_key, "content_type": saved.sent_content_type},
     )
 
 
-@router.post("/scans/{scan_id}/wishes", response_model=AiJobOut, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/scans/{scan_id}/wishes", response_model=FunWishOut)
 def create_fun_wish(
     scan_id: str,
     payload: FunWishRequest,
     x_session_id: str | None = Header(default=None),
     db: Session = Depends(get_db),
-) -> AiJobOut:
+) -> FunWishOut:
     if payload.wish_type == "fairground_quest":
         raise HTTPException(status_code=400, detail="La quête utilise le parcours photo dédié.")
 
     sid = _session_id(x_session_id)
-    _, wish_index = _scan_with_available_wish(db, sid, scan_id)
+    scan, wish_index = _scan_with_available_wish(db, sid, scan_id)
+    raw_bundle = (scan.analysis or {}).get("_fun_bundle")
+    if not isinstance(raw_bundle, dict):
+        raise HTTPException(
+            status_code=409,
+            detail="Les créations pré-calculées ne sont pas disponibles. Reprends une photo de l’objet.",
+        )
+
+    try:
+        bundle = FunCreativeBundle.model_validate(raw_bundle)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Les créations pré-calculées sont invalides. Reprends une photo de l’objet.",
+        ) from exc
+
+    draft = getattr(bundle, payload.wish_type)
     db.add(
         Event(
             session_id=sid,
@@ -99,12 +116,29 @@ def create_fun_wish(
             properties={"wish_type": payload.wish_type, "wish_index": wish_index, "quest": False},
         )
     )
-    return _enqueue(
-        db,
-        sid,
-        "fun_wish",
-        {"scan_id": scan_id, "wish_type": payload.wish_type, "quest_type": None, "image_keys": []},
-        related_id=scan_id,
+    scan.question_count += 1
+    remaining = max(0, 3 - scan.question_count)
+    db.add(
+        Event(
+            session_id=sid,
+            event_name="fun_wish_completed",
+            properties={
+                "wish_type": payload.wish_type,
+                "quest_type": None,
+                "wish_index": wish_index,
+                "wishes_remaining": remaining,
+                "cached": True,
+            },
+        )
+    )
+    if remaining == 0:
+        db.add(Event(session_id=sid, event_name="fun_session_completed", properties={"wishes_used": 3}))
+    db.commit()
+
+    return FunWishOut(
+        **draft.model_dump(mode="json"),
+        wishes_remaining=remaining,
+        wish_index=wish_index,
     )
 
 
@@ -125,8 +159,21 @@ async def create_fun_quest(
 
     image_keys: list[str] = []
     try:
-        for upload in (selfie, mission_one, mission_two):
-            image_keys.append(await save_image(upload))
+        uploads = (
+            ("fun_quest_selfie", selfie),
+            ("fun_quest_mission_one", mission_one),
+            ("fun_quest_mission_two", mission_two),
+        )
+        for flow, upload in uploads:
+            saved = await save_image(upload)
+            image_keys.append(saved.image_key)
+            db.add(
+                Event(
+                    session_id=sid,
+                    event_name="image_optimized",
+                    properties=saved.telemetry(flow),
+                )
+            )
 
         _, wish_index = _scan_with_available_wish(db, sid, scan_id)
         db.add(

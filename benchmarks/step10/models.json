@@ -29,11 +29,12 @@
     "model_id": "gpt-5.6-luna",
     "env_var": "OPENAI_API_KEY",
     "verified": true,
-    "enabled": true,
+    "enabled": false,
     "pricing_usd_per_million_tokens": {
       "input": 0.2,
       "output": 1.2
-    }
+    },
+    "benchmark_note": "Deferred: provider access/billing unavailable for the free pilot."
   },
   {
     "key": "qwen_vl_flash",
@@ -41,11 +42,12 @@
     "model_id": "qwen3-vl-flash",
     "env_var": "DASHSCOPE_API_KEY",
     "verified": true,
-    "enabled": true,
+    "enabled": false,
     "pricing_usd_per_million_tokens": {
       "input": 0.022,
       "output": 0.215
     },
-    "pricing_scope": "Global, 0<Token<=32K"
+    "pricing_scope": "Global, 0<Token<=32K",
+    "benchmark_note": "Deferred: provider access/billing unavailable for the free pilot."
   }
 ]

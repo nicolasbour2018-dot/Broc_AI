@@ -117,7 +117,9 @@ async function waitForAiJob<T>(initial: AiJob<T>, onProgress?: ProgressCallback)
   }
 
   if (job.status !== 'success' || !job.result) {
-    throw new Error(job.error_message || 'L’analyse n’est pas disponible pour le moment.')
+    const message = job.error_message || 'L’analyse n’est pas disponible pour le moment.'
+    const code = job.error_code ? ` · Code : ${job.error_code}` : ''
+    throw new Error(`${message}${code}`)
   }
   return job.result
 }
@@ -249,8 +251,11 @@ export async function askAssistantQuestion(
     })
   })
   if (!response.ok) throw new Error(await parseError(response))
-  const job = await response.json() as AiJob<AssistantQuestionResponse>
-  return waitForAiJob(job, onProgress)
+  const payload = await response.json() as AiJob<AssistantQuestionResponse> | AssistantQuestionResponse
+  if ('answer' in payload) {
+    return payload
+  }
+  return waitForAiJob(payload, onProgress)
 }
 
 
@@ -270,7 +275,7 @@ export async function analyzeFunPhoto(file: File, onProgress?: ProgressCallback)
 export async function requestFunWish(
   scanId: string,
   wishType: Exclude<FunWishType, 'fairground_quest'>,
-  onProgress?: ProgressCallback
+  _onProgress?: ProgressCallback
 ): Promise<FunWishResult> {
   const response = await fetch(`/api/fun/scans/${encodeURIComponent(scanId)}/wishes`, {
     method: 'POST',
@@ -278,8 +283,7 @@ export async function requestFunWish(
     body: JSON.stringify({ wish_type: wishType })
   })
   if (!response.ok) throw new Error(await parseError(response))
-  const job = await response.json() as AiJob<FunWishResult>
-  return waitForAiJob(job, onProgress)
+  return response.json() as Promise<FunWishResult>
 }
 
 export async function requestFunQuest(
@@ -312,6 +316,21 @@ export async function fetchAdminMetrics(token: string): Promise<AdminMetrics> {
   })
   if (!response.ok) throw new Error(await parseAdminError(response))
   return response.json() as Promise<AdminMetrics>
+}
+
+export async function updateAdminRouting(
+  token: string,
+  mode: 'auto' | 'gemini_only' | 'qwen_only'
+): Promise<void> {
+  const response = await fetch('/api/admin/routing', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': token
+    },
+    body: JSON.stringify({ mode, reason: 'Changement manuel depuis Console Ops' })
+  })
+  if (!response.ok) throw new Error(await parseAdminError(response))
 }
 
 export async function downloadAdminExport(

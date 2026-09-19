@@ -17,19 +17,31 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .db import get_db
+from .db import engine, get_db
 from .models import AiJob, AssistantScan, Event, Listing, utcnow
 
 router = APIRouter(prefix="/api", tags=["telemetry"])
+health_router = APIRouter(tags=["health"])
 TERMINAL_STATUSES = {"success", "error", "timeout"}
+FUN_FEATURES = ("fun_analyze", "fun_wish")
+AI_ROUTING_MODES = {"auto", "gemini_only", "qwen_only"}
+CONFIGURED_AI_ROUTING_MODE = settings.ai_routing_mode.strip().lower()
+
+
+def _bounded_env_int(name: str, default: int, maximum: int = 100) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except ValueError:
+        value = default
+    return max(1, min(maximum, value))
 
 
 def _max_ai_in_flight() -> int:
-    try:
-        value = int(os.getenv("MAX_AI_IN_FLIGHT", "20"))
-    except ValueError:
-        value = 20
-    return max(1, min(100, value))
+    return _bounded_env_int("MAX_AI_IN_FLIGHT", 20)
+
+
+def _max_fun_in_flight() -> int:
+    return min(_max_ai_in_flight(), _bounded_env_int("MAX_FUN_IN_FLIGHT", 4))
 
 ClientEventName = Literal[
     "session_started",
@@ -62,6 +74,11 @@ class ClientEventIn(BaseModel):
         return self
 
 
+class AdminRoutingIn(BaseModel):
+    mode: Literal["auto", "gemini_only", "qwen_only"]
+    reason: str = Field(default="Changement manuel depuis Console Ops", max_length=180)
+
+
 def _session_id(value: str | None) -> str:
     return (value or "anonymous")[:64]
 
@@ -75,6 +92,50 @@ def _require_admin_token(x_admin_token: str | None = Header(default=None)) -> No
         )
     if not x_admin_token or not hmac.compare_digest(x_admin_token, expected):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token admin invalide.")
+
+
+def _storage_status() -> str:
+    try:
+        settings.upload_dir.mkdir(parents=True, exist_ok=True)
+        return "ok" if os.access(settings.upload_dir, os.W_OK) else "error"
+    except OSError:
+        return "error"
+
+
+def _readiness_snapshot() -> dict[str, str]:
+    database = "ok"
+    try:
+        with engine.connect() as connection:
+            connection.execute(select(1))
+    except Exception:
+        database = "error"
+
+    storage = _storage_status()
+    ready = "ok" if database == "ok" and storage == "ok" else "degraded"
+    return {"status": ready, "database": database, "storage": storage}
+
+
+def _routing_control() -> dict[str, Any]:
+    active_mode = settings.ai_routing_mode.strip().lower()
+    return {
+        "active_mode": active_mode,
+        "configured_mode": CONFIGURED_AI_ROUTING_MODE,
+        "override_active": active_mode != CONFIGURED_AI_ROUTING_MODE,
+        "fallback_configured": bool((settings.hf_token or "").strip()),
+    }
+
+
+@health_router.get("/health/live")
+def health_live() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@health_router.get("/health/ready")
+def health_ready(response: Response) -> dict[str, str]:
+    snapshot = _readiness_snapshot()
+    if snapshot["status"] != "ok":
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return snapshot
 
 
 def _event_count(db: Session, name: str) -> int:
@@ -152,6 +213,71 @@ def _queue_wait_ms(job: AiJob) -> int | None:
     return max(0, round((started_at - created_at).total_seconds() * 1000))
 
 
+def _lane(feature: str) -> str:
+    return "fun" if feature in FUN_FEATURES else "core"
+
+
+def _analysis_mode(job: AiJob) -> str | None:
+    result = job.result
+    if not isinstance(result, dict):
+        return None
+    value = result.get("analysis_mode")
+    return value if isinstance(value, str) and value else None
+
+
+def _ops_status(
+    *,
+    queued: int,
+    core_queued: int,
+    running: int,
+    fun_queued: int,
+    fun_running: int,
+    recent_terminal: int,
+    recent_errors: int,
+    last_hour_terminal: int,
+    last_hour_error_rate: float,
+) -> dict[str, str]:
+    max_total = _max_ai_in_flight()
+    max_fun = _max_fun_in_flight()
+    recent_error_rate = (recent_errors / recent_terminal * 100) if recent_terminal else 0.0
+
+    if recent_terminal >= 3 and recent_errors >= 3 and recent_error_rate >= 50:
+        return {
+            "level": "critical",
+            "label": "Problème IA — erreurs anormales",
+            "detail": f"{recent_errors}/{recent_terminal} jobs en erreur sur les 15 dernières minutes.",
+        }
+    if core_queued > 0 and running >= max_total:
+        return {
+            "level": "warning",
+            "label": "Charge importante — CORE en attente",
+            "detail": f"{core_queued} job(s) CORE attendent, {running}/{max_total} slots sont occupés.",
+        }
+    if fun_queued > 0 and fun_running >= max_fun:
+        return {
+            "level": "warning",
+            "label": "Charge importante — FUN limité",
+            "detail": f"FUN utilise {fun_running}/{max_fun} slots et {fun_queued} job(s) attendent. CORE reste prioritaire.",
+        }
+    if queued >= max_total:
+        return {
+            "level": "warning",
+            "label": "Backlog IA à surveiller",
+            "detail": f"{queued} job(s) sont en attente pour {max_total} slots disponibles.",
+        }
+    if last_hour_terminal >= 5 and last_hour_error_rate >= 20:
+        return {
+            "level": "warning",
+            "label": "Erreurs IA à surveiller",
+            "detail": f"Taux d’erreur sur 1 h : {last_hour_error_rate:.1f} %.",
+        }
+    return {
+        "level": "ok",
+        "label": "Tout va bien",
+        "detail": "CORE est prioritaire, la capacité IA et les erreurs récentes sont dans la zone normale.",
+    }
+
+
 @router.post("/events", status_code=status.HTTP_204_NO_CONTENT)
 def record_client_event(
     payload: ClientEventIn,
@@ -169,20 +295,69 @@ def record_client_event(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.patch("/admin/routing", dependencies=[Depends(_require_admin_token)])
+def update_admin_routing(payload: AdminRoutingIn, db: Session = Depends(get_db)) -> dict[str, Any]:
+    previous_mode = settings.ai_routing_mode.strip().lower()
+    next_mode = payload.mode.strip().lower()
+    if next_mode not in AI_ROUTING_MODES:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Mode de routage IA invalide.")
+
+    settings.ai_routing_mode = next_mode
+    changed = previous_mode != next_mode
+    if changed:
+        db.add(
+            Event(
+                session_id="ops:nicolas",
+                event_name="ops_action",
+                properties={
+                    "actor": "Nicolas",
+                    "action": "routing_override",
+                    "target": "ai_router",
+                    "reason": payload.reason.strip() or "Changement manuel depuis Console Ops",
+                    "result": "success",
+                    "from_mode": previous_mode,
+                    "to_mode": next_mode,
+                },
+            )
+        )
+        db.commit()
+
+    return {"changed": changed, **_routing_control()}
+
+
+@router.get("/admin/diagnostics", dependencies=[Depends(_require_admin_token)])
+def admin_diagnostics(db: Session = Depends(get_db)) -> dict[str, Any]:
+    return admin_metrics(db)
+
+
 @router.get("/admin/metrics", dependencies=[Depends(_require_admin_token)])
 def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
     now = utcnow()
+    readiness = _readiness_snapshot()
     one_hour_ago = now - timedelta(hours=1)
+    fifteen_minutes_ago = now - timedelta(minutes=15)
 
-    queue_counts = {
-        status_name: int(db.scalar(select(func.count(AiJob.id)).where(AiJob.status == status_name)) or 0)
-        for status_name in ("queued", "running")
-    }
+    queued = int(db.scalar(select(func.count(AiJob.id)).where(AiJob.status == "queued")) or 0)
+    running = int(db.scalar(select(func.count(AiJob.id)).where(AiJob.status == "running")) or 0)
+    fun_queued = int(
+        db.scalar(
+            select(func.count(AiJob.id)).where(AiJob.status == "queued", AiJob.feature.in_(FUN_FEATURES))
+        )
+        or 0
+    )
+    fun_running = int(
+        db.scalar(
+            select(func.count(AiJob.id)).where(AiJob.status == "running", AiJob.feature.in_(FUN_FEATURES))
+        )
+        or 0
+    )
+    core_queued = max(0, queued - fun_queued)
+    core_running = max(0, running - fun_running)
 
     total_ai_calls = int(db.scalar(select(func.count(AiJob.id))) or 0)
     last_hour_calls = int(db.scalar(select(func.count(AiJob.id)).where(AiJob.created_at >= one_hour_ago)) or 0)
 
-    recent_jobs = list(
+    recent_terminal_jobs = list(
         db.scalars(
             select(AiJob)
             .where(AiJob.status.in_(TERMINAL_STATUSES), AiJob.completed_at.is_not(None))
@@ -190,14 +365,108 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
             .limit(30)
         ).all()
     )
-    last_hour_terminal = [
-        job for job in recent_jobs
-        if (completed_at := _aware_utc(job.completed_at)) is not None and completed_at >= one_hour_ago
+    recent_latencies = [float(job.duration_ms) for job in recent_terminal_jobs if job.duration_ms is not None]
+    recent_waits = [float(wait) for job in recent_terminal_jobs if (wait := _queue_wait_ms(job)) is not None]
+
+    status_counts = {
+        name: int(db.scalar(select(func.count(AiJob.id)).where(AiJob.status == name)) or 0)
+        for name in ("success", "error", "timeout")
+    }
+    last_hour_status_counts = {
+        name: int(
+            db.scalar(
+                select(func.count(AiJob.id)).where(
+                    AiJob.status == name,
+                    AiJob.completed_at.is_not(None),
+                    AiJob.completed_at >= one_hour_ago,
+                )
+            )
+            or 0
+        )
+        for name in ("success", "error", "timeout")
+    }
+    last_hour_terminal = sum(last_hour_status_counts.values())
+    last_hour_errors = last_hour_status_counts["error"] + last_hour_status_counts["timeout"]
+    error_rate = round(last_hour_errors / last_hour_terminal * 100, 1) if last_hour_terminal else 0.0
+    success_rate = round(last_hour_status_counts["success"] / last_hour_terminal * 100, 1) if last_hour_terminal else None
+
+    recent_15_status_counts = {
+        name: int(
+            db.scalar(
+                select(func.count(AiJob.id)).where(
+                    AiJob.status == name,
+                    AiJob.completed_at.is_not(None),
+                    AiJob.completed_at >= fifteen_minutes_ago,
+                )
+            )
+            or 0
+        )
+        for name in ("success", "error", "timeout")
+    }
+    recent_15_terminal = sum(recent_15_status_counts.values())
+    recent_15_errors = recent_15_status_counts["error"] + recent_15_status_counts["timeout"]
+
+    provider_jobs = list(
+        db.scalars(
+            select(AiJob)
+            .where(
+                AiJob.status == "success",
+                AiJob.completed_at.is_not(None),
+                AiJob.completed_at >= one_hour_ago,
+            )
+            .order_by(AiJob.completed_at.desc())
+        ).all()
+    )
+    provider_modes = [mode for job in provider_jobs if (mode := _analysis_mode(job)) is not None]
+    primary_mode = f"gemini:{settings.gemini_model}"
+    quality_mode = f"gemini:{settings.gemini_quality_model}"
+    provider_primary = sum(mode == primary_mode for mode in provider_modes)
+    provider_quality = sum(mode == quality_mode for mode in provider_modes)
+    provider_qwen = sum(mode.startswith("qwen-hf:") for mode in provider_modes)
+    provider_other = max(0, len(provider_modes) - provider_primary - provider_quality - provider_qwen)
+    routing_mode = settings.ai_routing_mode.strip().lower()
+
+    activity_jobs = list(
+        db.scalars(select(AiJob).order_by(AiJob.created_at.desc()).limit(12)).all()
+    )
+    recent_rows = [
+        {
+            "id": job.id,
+            "feature": job.feature,
+            "lane": _lane(job.feature),
+            "status": job.status,
+            "analysis_mode": _analysis_mode(job),
+            "duration_ms": job.duration_ms,
+            "queue_wait_ms": _queue_wait_ms(job),
+            "error_code": job.error_code,
+            "error_message": job.error_message,
+            "created_at": job.created_at.isoformat(),
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        }
+        for job in activity_jobs
     ]
-    recent_latencies = [float(job.duration_ms) for job in recent_jobs if job.duration_ms is not None]
-    recent_waits = [float(wait) for job in recent_jobs if (wait := _queue_wait_ms(job)) is not None]
-    error_jobs = [job for job in last_hour_terminal if job.status in {"error", "timeout"}]
-    error_rate = round(len(error_jobs) / len(last_hour_terminal) * 100, 1) if last_hour_terminal else 0.0
+
+    recent_error_jobs = list(
+        db.scalars(
+            select(AiJob)
+            .where(AiJob.status.in_(("error", "timeout")), AiJob.completed_at.is_not(None))
+            .order_by(AiJob.completed_at.desc())
+            .limit(6)
+        ).all()
+    )
+    recent_errors = [
+        {
+            "id": job.id,
+            "feature": job.feature,
+            "lane": _lane(job.feature),
+            "status": job.status,
+            "error_code": job.error_code,
+            "error_message": job.error_message,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        }
+        for job in recent_error_jobs
+    ]
 
     catalogue_events = list(
         db.scalars(
@@ -217,31 +486,54 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
     active_listings = int(db.scalar(select(func.count(Listing.id)).where(Listing.sold_at.is_(None))) or 0)
     assistant_scans = int(db.scalar(select(func.count(AssistantScan.id))) or 0)
 
-    status_counts = {
-        name: int(db.scalar(select(func.count(AiJob.id)).where(AiJob.status == name)) or 0)
-        for name in ("success", "error", "timeout")
-    }
+    ops = _ops_status(
+        queued=queued,
+        core_queued=core_queued,
+        running=running,
+        fun_queued=fun_queued,
+        fun_running=fun_running,
+        recent_terminal=recent_15_terminal,
+        recent_errors=recent_15_errors,
+        last_hour_terminal=last_hour_terminal,
+        last_hour_error_rate=error_rate,
+    )
 
-    recent_rows = []
-    for job in recent_jobs[:8]:
-        recent_rows.append(
-            {
-                "id": job.id,
-                "feature": job.feature,
-                "status": job.status,
-                "duration_ms": job.duration_ms,
-                "queue_wait_ms": _queue_wait_ms(job),
-                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-            }
-        )
+    ops_events = list(
+        db.scalars(
+            select(Event)
+            .where(Event.event_name == "ops_action")
+            .order_by(Event.created_at.desc())
+            .limit(8)
+        ).all()
+    )
+    ops_timeline = [
+        {
+            "id": event.id,
+            "created_at": event.created_at.isoformat(),
+            **(event.properties or {}),
+        }
+        for event in ops_events
+    ]
 
     return {
         "generated_at": now.isoformat(),
-        "service": {"status": "ok", "database": "ok"},
+        "ops": ops,
+        "service": {
+            "status": "ok",
+            "live": "ok",
+            "ready": readiness["status"],
+            "database": readiness["database"],
+            "storage": readiness["storage"],
+            "routing_mode": routing_mode,
+        },
+        "routing_control": _routing_control(),
+        "ops_timeline": ops_timeline,
         "queue": {
-            "queued": queue_counts["queued"],
-            "running": queue_counts["running"],
+            "queued": queued,
+            "running": running,
             "max_in_flight": _max_ai_in_flight(),
+            "core": {"queued": core_queued, "running": core_running},
+            "fun": {"queued": fun_queued, "running": fun_running, "max_in_flight": _max_fun_in_flight()},
         },
         "ai": {
             "total_calls": total_ai_calls,
@@ -249,10 +541,22 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
             "success": status_counts["success"],
             "error": status_counts["error"],
             "timeout": status_counts["timeout"],
-            "recent_sample_size": len(recent_jobs),
+            "recent_sample_size": len(recent_terminal_jobs),
             "average_latency_ms": _average(recent_latencies),
             "average_queue_wait_ms": _average(recent_waits),
+            "last_hour_success_rate_percent": success_rate,
             "last_hour_error_rate_percent": error_rate,
+            "last_hour_terminal": last_hour_terminal,
+            "providers": {
+                "sample_size": len(provider_modes),
+                "gemini_primary": provider_primary,
+                "gemini_quality": provider_quality,
+                "qwen": provider_qwen,
+                "fallback_qwen": provider_qwen if routing_mode == "auto" else 0,
+                "other": provider_other,
+                "primary_mode": primary_mode,
+                "quality_mode": quality_mode,
+            },
         },
         "product": {
             "sessions": _event_count(db, "session_started"),
@@ -271,6 +575,7 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
         },
         "system": _read_system_metrics(),
         "recent_jobs": recent_rows,
+        "recent_errors": recent_errors,
     }
 
 
@@ -295,11 +600,14 @@ def _jobs_export(db: Session) -> list[dict[str, Any]]:
             "id": row.id,
             "session_id": row.session_id,
             "feature": row.feature,
+            "lane": _lane(row.feature),
             "status": row.status,
+            "analysis_mode": _analysis_mode(row),
             "attempts": row.attempts,
             "duration_ms": row.duration_ms,
             "queue_wait_ms": _queue_wait_ms(row),
             "error_code": row.error_code,
+            "error_message": row.error_message,
             "created_at": row.created_at.isoformat(),
             "started_at": row.started_at.isoformat() if row.started_at else None,
             "completed_at": row.completed_at.isoformat() if row.completed_at else None,
