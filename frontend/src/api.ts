@@ -318,6 +318,21 @@ export async function fetchAdminMetrics(token: string): Promise<AdminMetrics> {
   return response.json() as Promise<AdminMetrics>
 }
 
+export async function updateAdminRouting(
+  token: string,
+  mode: 'auto' | 'gemini_only' | 'qwen_only'
+): Promise<void> {
+  const response = await fetch('/api/admin/routing', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': token
+    },
+    body: JSON.stringify({ mode, reason: 'Changement manuel depuis Console Ops' })
+  })
+  if (!response.ok) throw new Error(await parseAdminError(response))
+}
+
 export async function downloadAdminExport(
   token: string,
   dataset: 'events' | 'ai_jobs' | 'listings',

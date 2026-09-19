@@ -101,10 +101,25 @@ export interface AiJob<T> extends AiJobProgress {
   result: T | null
 }
 
+export type AiRoutingMode = 'auto' | 'gemini_only' | 'qwen_only'
+
 export interface AdminMetrics {
   generated_at: string
-  service: { status: string; database: string; routing_mode: string }
-  queue: { queued: number; running: number; max_in_flight: number }
+  ops: {
+    level: 'ok' | 'warning' | 'critical'
+    label: string
+    detail: string
+  }
+  service: { status: string; live: string; ready: string; database: string; storage: string; routing_mode: AiRoutingMode }
+  routing_control: { active_mode: AiRoutingMode; configured_mode: AiRoutingMode; override_active: boolean; fallback_configured: boolean }
+  ops_timeline: Array<{ id: string; created_at: string; actor?: string; action?: string; target?: string; reason?: string; result?: string; from_mode?: AiRoutingMode; to_mode?: AiRoutingMode }>
+  queue: {
+    queued: number
+    running: number
+    max_in_flight: number
+    core: { queued: number; running: number }
+    fun: { queued: number; running: number; max_in_flight: number }
+  }
   ai: {
     total_calls: number
     last_hour_calls: number
@@ -114,7 +129,19 @@ export interface AdminMetrics {
     recent_sample_size: number
     average_latency_ms: number | null
     average_queue_wait_ms: number | null
+    last_hour_success_rate_percent: number | null
     last_hour_error_rate_percent: number
+    last_hour_terminal: number
+    providers: {
+      sample_size: number
+      gemini_primary: number
+      gemini_quality: number
+      qwen: number
+      fallback_qwen: number
+      other: number
+      primary_mode: string
+      quality_mode: string
+    }
   }
   product: {
     sessions: number
@@ -140,10 +167,24 @@ export interface AdminMetrics {
   recent_jobs: Array<{
     id: string
     feature: string
+    lane: 'core' | 'fun'
     status: AiJobStatus
+    analysis_mode: string | null
     duration_ms: number | null
     queue_wait_ms: number | null
     error_code: string | null
+    error_message: string | null
+    created_at: string
+    started_at: string | null
+    completed_at: string | null
+  }>
+  recent_errors: Array<{
+    id: string
+    feature: string
+    lane: 'core' | 'fun'
+    status: AiJobStatus
+    error_code: string | null
+    error_message: string | null
     completed_at: string | null
   }>
 }

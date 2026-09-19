@@ -24,7 +24,7 @@ from .schemas import (
     ListingUpdate,
 )
 from .storage import image_exists, save_image
-from .telemetry import router as telemetry_router
+from .telemetry import health_router, router as telemetry_router
 
 
 @asynccontextmanager
@@ -48,6 +48,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/media", StaticFiles(directory=settings.upload_dir, check_dir=False), name="media")
+app.include_router(health_router)
 app.include_router(telemetry_router)
 app.include_router(funlab_router)
 
