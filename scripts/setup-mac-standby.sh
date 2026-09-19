@@ -48,10 +48,14 @@ chmod 600 "$CF_DIR/brocai-mac.yml" "$CF_DIR/brocai-ops.yml"
 
 CLOUDFLARED_BIN="$(command -v cloudflared)"
 PYTHON_BIN="$(command -v python3)"
+DOCKER_BIN="$(command -v docker)"
+DOCKER_DIR="$(dirname "$DOCKER_BIN")"
+CLOUDFLARED_DIR="$(dirname "$CLOUDFLARED_BIN")"
+LAUNCH_PATH="${DOCKER_DIR}:${CLOUDFLARED_DIR}:/opt/homebrew/bin:/usr/local/bin:/Applications/Docker.app/Contents/Resources/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 OPS_ENV_ABS="$(cd "$(dirname "$OPS_ENV_FILE")" && pwd)/$(basename "$OPS_ENV_FILE")"
 
 write_agent() {
-  local label="$1" program="$2" args_xml="$3" interval="${4:-}"
+  local label="$1" program="$2" args_xml="$3" interval="${4:-}" keep_alive="${5:-}"
   local plist="$LAUNCH_DIR/${label}.plist"
   cat > "$plist" <<EOF2
 <?xml version="1.0" encoding="UTF-8"?>
@@ -59,8 +63,9 @@ write_agent() {
 <plist version="1.0"><dict>
   <key>Label</key><string>${label}</string>
   <key>ProgramArguments</key><array><string>${program}</string>${args_xml}</array>
-  <key>EnvironmentVariables</key><dict><key>BROCAI_OPS_ENV_FILE</key><string>${OPS_ENV_ABS}</string></dict>
+  <key>EnvironmentVariables</key><dict><key>BROCAI_OPS_ENV_FILE</key><string>${OPS_ENV_ABS}</string><key>PATH</key><string>${LAUNCH_PATH}</string></dict>
   <key>RunAtLoad</key><true/>
+  ${keep_alive}
   ${interval}
   <key>StandardOutPath</key><string>${STATE_DIR}/${label}.out.log</string>
   <key>StandardErrorPath</key><string>${STATE_DIR}/${label}.err.log</string>
@@ -72,11 +77,14 @@ EOF2
 }
 
 write_agent "com.brocai.tunnel.mac" "$CLOUDFLARED_BIN" \
-  "<string>tunnel</string><string>--config</string><string>${CF_DIR}/brocai-mac.yml</string><string>--no-autoupdate</string><string>run</string><string>${BROCAI_MAC_TUNNEL_ID}</string>"
+  "<string>tunnel</string><string>--config</string><string>${CF_DIR}/brocai-mac.yml</string><string>--no-autoupdate</string><string>run</string><string>${BROCAI_MAC_TUNNEL_ID}</string>" \
+  "" "<key>KeepAlive</key><true/>"
 write_agent "com.brocai.tunnel.ops" "$CLOUDFLARED_BIN" \
-  "<string>tunnel</string><string>--config</string><string>${CF_DIR}/brocai-ops.yml</string><string>--no-autoupdate</string><string>run</string><string>${BROCAI_OPS_TUNNEL_ID}</string>"
+  "<string>tunnel</string><string>--config</string><string>${CF_DIR}/brocai-ops.yml</string><string>--no-autoupdate</string><string>run</string><string>${BROCAI_OPS_TUNNEL_ID}</string>" \
+  "" "<key>KeepAlive</key><true/>"
 write_agent "com.brocai.ops" "$PYTHON_BIN" \
-  "<string>${APP_DIR}/ops/control_plane.py</string>"
+  "<string>${APP_DIR}/ops/control_plane.py</string>" \
+  "" "<key>KeepAlive</key><true/>"
 write_agent "com.brocai.sync" "/bin/bash" \
   "<string>${APP_DIR}/scripts/sync-standby.sh</string>" \
   "<key>StartInterval</key><integer>120</integer>"

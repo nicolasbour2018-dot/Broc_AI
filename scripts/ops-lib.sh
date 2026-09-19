@@ -92,6 +92,77 @@ ops_state_dir() {
   printf '%s/state' "$BROCAI_STANDBY_ROOT"
 }
 
+ops_lock_path() {
+  local name="$1"
+  printf '%s/%s.lock' "$(ops_state_dir)" "$name"
+}
+
+ops_lock_is_held() {
+  local name="$1" lock_dir owner_pid
+  lock_dir="$(ops_lock_path "$name")"
+  [[ -d "$lock_dir" ]] || return 1
+
+  owner_pid=""
+  if [[ -f "$lock_dir/pid" ]]; then
+    owner_pid="$(<"$lock_dir/pid")"
+  fi
+  if [[ "$owner_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$owner_pid" 2>/dev/null; then
+    ops_log "verrou $name obsolète (PID $owner_pid); nettoyage"
+    rm -f "$lock_dir/pid"
+    if rmdir "$lock_dir" 2>/dev/null; then
+      return 1
+    fi
+    ops_log "impossible de nettoyer le verrou $name: $lock_dir"
+  fi
+  return 0
+}
+
+ops_lock_acquire() {
+  local name="$1" wait_mode="${2:-wait}" lock_dir waiting=0
+  lock_dir="$(ops_lock_path "$name")"
+  mkdir -p "$(ops_state_dir)"
+
+  while ! mkdir "$lock_dir" 2>/dev/null; do
+    if ! ops_lock_is_held "$name"; then
+      continue
+    fi
+    if [[ "$wait_mode" == "no-wait" ]]; then
+      return 1
+    fi
+    if [[ "$waiting" -eq 0 ]]; then
+      ops_log "attente du verrou $name détenu par une autre opération"
+      waiting=1
+    fi
+    sleep 1
+  done
+  printf '%s\n' "$$" > "$lock_dir/pid"
+}
+
+ops_lock_assert_owner() {
+  local name="$1" expected_pid="$2" lock_dir owner_pid=""
+  lock_dir="$(ops_lock_path "$name")"
+  if [[ -f "$lock_dir/pid" ]]; then
+    owner_pid="$(<"$lock_dir/pid")"
+  fi
+  [[ "$owner_pid" == "$expected_pid" ]] \
+    || ops_die "verrou $name absent ou détenu par un autre processus"
+}
+
+ops_lock_release() {
+  local name="$1" lock_dir owner_pid=""
+  lock_dir="$(ops_lock_path "$name")"
+  [[ -d "$lock_dir" ]] || return 0
+  if [[ -f "$lock_dir/pid" ]]; then
+    owner_pid="$(<"$lock_dir/pid")"
+  fi
+  if [[ "$owner_pid" != "$$" ]]; then
+    ops_log "refus de libérer le verrou $name détenu par le PID ${owner_pid:-inconnu}"
+    return 1
+  fi
+  rm -f "$lock_dir/pid"
+  rmdir "$lock_dir"
+}
+
 ops_cf_api() {
   local method="$1"
   local url="$2"
@@ -141,15 +212,27 @@ ops_route_origin() {
 ops_cf_switch_target() {
   local tunnel_id="$1"
   local record_id payload response expected
-  record_id="$(ops_cf_record_id)" || ops_die "impossible de déterminer le DNS record Cloudflare"
+  if ! record_id="$(ops_cf_record_id)"; then
+    printf '[brocai-ops] ERROR: impossible de déterminer le DNS record Cloudflare\n' >&2
+    return 1
+  fi
   expected="${tunnel_id}.cfargotunnel.com"
-  payload="$(python3 - "$expected" <<'PY'
+  if ! payload="$(python3 - "$expected" <<'PY'
 import json, sys
 print(json.dumps({"type": "CNAME", "content": sys.argv[1], "proxied": True, "ttl": 1}))
 PY
-)"
-  response="$(ops_cf_api PATCH "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records/${record_id}" "$payload")"
-  python3 -c 'import json,sys; expected=sys.argv[1]; doc=json.load(sys.stdin); success=doc.get("success"); actual=(doc.get("result") or {}).get("content"); sys.exit("Cloudflare a refusé la mise à jour DNS") if not success else None; sys.exit(f"cible DNS inattendue: {actual!r}") if actual != expected else None' "$expected" <<<"$response"
+)"; then
+    printf '[brocai-ops] ERROR: impossible de préparer la mise à jour DNS Cloudflare\n' >&2
+    return 1
+  fi
+  if ! response="$(ops_cf_api PATCH "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records/${record_id}" "$payload")"; then
+    printf '[brocai-ops] ERROR: échec de la mise à jour DNS Cloudflare\n' >&2
+    return 1
+  fi
+  if ! python3 -c 'import json,sys; expected=sys.argv[1]; doc=json.load(sys.stdin); success=doc.get("success"); actual=(doc.get("result") or {}).get("content"); sys.exit("Cloudflare a refusé la mise à jour DNS") if not success else None; sys.exit(f"cible DNS inattendue: {actual!r}") if actual != expected else None' "$expected" <<<"$response"; then
+    printf '[brocai-ops] ERROR: réponse Cloudflare invalide après mise à jour DNS\n' >&2
+    return 1
+  fi
 }
 
 ops_record_action() {

@@ -11,26 +11,46 @@ ops_need git
 ops_need tar
 
 FORCE=0
-if [[ "${1:-}" == "--force-from-vps" ]]; then
-  FORCE=1
-elif [[ $# -gt 0 ]]; then
-  ops_die "usage: $0 [--force-from-vps]"
-fi
+OPERATION_LOCK_HELD=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --force-from-vps) FORCE=1 ;;
+    --operation-lock-held) OPERATION_LOCK_HELD=1 ;;
+    *) ops_die "usage: $0 [--force-from-vps] [--operation-lock-held]" ;;
+  esac
+  shift
+done
 
 STATE_DIR="$(ops_state_dir)"
 APP_DIR="$(ops_standby_app_dir)"
 ENV_FILE="$(ops_standby_env_file)"
 DATA_DIR="$BROCAI_STANDBY_ROOT/data"
-LOCK_DIR="$STATE_DIR/sync.lock"
 mkdir -p "$STATE_DIR" "$DATA_DIR"
 
-if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-  ops_log "une synchronisation est déjà en cours; rien à faire"
-  exit 0
+OWNS_OPERATION_LOCK=0
+if [[ "$OPERATION_LOCK_HELD" -eq 1 ]]; then
+  ops_lock_assert_owner "operation" "$PPID"
+else
+  if ops_lock_is_held "transition"; then
+    ops_die "une transition failover/failback est en cours; synchronisation non exécutée"
+  fi
+  if ! ops_lock_acquire "operation" "no-wait"; then
+    ops_die "une autre opération sync/failover/failback est en cours; synchronisation non exécutée"
+  fi
+  OWNS_OPERATION_LOCK=1
+  if ops_lock_is_held "transition"; then
+    ops_log "une transition failover/failback vient de démarrer; synchronisation non exécutée"
+    ops_lock_release "operation"
+    OWNS_OPERATION_LOCK=0
+    exit 1
+  fi
 fi
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brocai-sync.XXXXXX")"
 cleanup() {
-  rm -rf "$TMP_DIR" "$LOCK_DIR"
+  rm -rf "$TMP_DIR"
+  if [[ "$OWNS_OPERATION_LOCK" -eq 1 ]]; then
+    ops_lock_release "operation" || true
+  fi
 }
 trap cleanup EXIT
 
@@ -97,11 +117,13 @@ ops_ssh "$REMOTE_COMPOSE exec -T postgres sh -lc 'pg_dump -U \"\$POSTGRES_USER\"
 
 ops_log "snapshot uploads VPS"
 mkdir -p "$TMP_DIR/uploads"
-ops_ssh "$REMOTE_COMPOSE exec -T backend python -c 'import sys,tarfile; t=tarfile.open(fileobj=sys.stdout.buffer, mode=\"w|\"); t.add(\"/app/data/uploads\", arcname=\".\"); t.close()'" \
+printf -v REMOTE_UPLOADS_DIR '%q' "$BROCAI_VPS_DATA_DIR/uploads"
+ops_ssh "tar -C $REMOTE_UPLOADS_DIR -cf - ." \
   | tar -xf - -C "$TMP_DIR/uploads"
 
 compose=(docker compose --env-file "$ENV_FILE" -f "$APP_DIR/docker-compose.prod.yml")
-"${compose[@]}" stop frontend backend >/dev/null 2>&1 || true
+ops_log "arrêt frontend/backend Mac avant restauration"
+"${compose[@]}" stop frontend backend >/dev/null
 "${compose[@]}" up -d postgres >/dev/null
 
 ops_log "attente PostgreSQL standby"

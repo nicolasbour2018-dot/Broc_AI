@@ -37,22 +37,22 @@ BIND_HOST = CONFIG.get("BROCAI_OPS_BIND_HOST", "127.0.0.1")
 PORT = int(CONFIG.get("BROCAI_OPS_PORT", "8765"))
 ACTION_LOCK = threading.Lock()
 
-ACTIONS: dict[str, tuple[str, str | None, int]] = {
-    "sync": ("sync-standby.sh", None, 240),
+ACTIONS: dict[str, tuple[str, str | None, int | None]] = {
+    "sync": ("sync-standby.sh", None, None),
     "restart-services": ("restart-vps-services.sh", "RESTART", 120),
     "restart-tunnel": ("restart-vps-tunnel.sh", "TUNNEL", 90),
     "reboot-vps": ("restart-vps.sh", "REBOOT", 300),
-    "failover-mac": ("failover-to-mac.sh", "FAILOVER", 300),
-    "failback-vps": ("failback-to-vps.sh", "FAILBACK", 420),
+    "failover-mac": ("failover-to-mac.sh", "FAILOVER", None),
+    "failback-vps": ("failback-to-vps.sh", "FAILBACK", None),
 }
 
 
-def run_script(name: str, timeout: int) -> dict[str, Any]:
+def run_script(name: str, timeout: int | None, *args: str) -> dict[str, Any]:
     script = ROOT / "scripts" / name
     env = os.environ.copy()
     env["BROCAI_OPS_ENV_FILE"] = str(OPS_ENV_FILE)
     completed = subprocess.run(
-        [str(script)],
+        [str(script), *args],
         cwd=ROOT,
         env=env,
         capture_output=True,
@@ -114,7 +114,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self.authorized():
                 self.send_json(HTTPStatus.UNAUTHORIZED, {"detail": "Token Ops invalide."})
                 return
-            result = run_script("ops-status.sh", 30)
+            result = run_script("ops-status.sh", 30, "--json")
             if not result["ok"]:
                 self.send_json(HTTPStatus.BAD_GATEWAY, result)
                 return
