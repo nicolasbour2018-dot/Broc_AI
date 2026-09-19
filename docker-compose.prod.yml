@@ -1,0 +1,112 @@
+name: brocai-prod
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-brocai}
+      POSTGRES_USER: ${POSTGRES_USER:-brocai}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    volumes:
+      - ${BROCAI_DATA_DIR:-/srv/brocai/data}/postgres:/var/lib/postgresql/data
+    shm_size: 256m
+    cpus: 1.0
+    mem_limit: 1536m
+    pids_limit: 256
+    logging: &bounded-logging
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - brocai_internal
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    init: true
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-brocai}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-brocai}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      UPLOAD_DIR: /app/data/uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-8}
+      IMAGE_MAX_EDGE_PX: ${IMAGE_MAX_EDGE_PX:-1920}
+      IMAGE_JPEG_QUALITY: ${IMAGE_JPEG_QUALITY:-90}
+      IMAGE_WEBP_QUALITY: ${IMAGE_WEBP_QUALITY:-90}
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+      GEMINI_QUALITY_MODEL: ${GEMINI_QUALITY_MODEL:-gemini-3.6-flash}
+      AI_FORCE_QUALITY_SCALE_UP: ${AI_FORCE_QUALITY_SCALE_UP:-false}
+      HF_TOKEN: ${HF_TOKEN:?HF_TOKEN is required}
+      HF_ROUTER_URL: ${HF_ROUTER_URL:-https://router.huggingface.co/v1/chat/completions}
+      HF_QWEN_MODEL: ${HF_QWEN_MODEL:-Qwen/Qwen3.5-35B-A3B:deepinfra}
+      HF_TIMEOUT_SECONDS: ${HF_TIMEOUT_SECONDS:-30}
+      HF_FALLBACK_MAX_ATTEMPTS: ${HF_FALLBACK_MAX_ATTEMPTS:-3}
+      AI_ROUTING_MODE: ${AI_ROUTING_MODE:-auto}
+      AI_FORCE_PRIMARY_FAILURE: ${AI_FORCE_PRIMARY_FAILURE:-false}
+      MAX_AI_IN_FLIGHT: ${MAX_AI_IN_FLIGHT:-20}
+      MAX_FUN_IN_FLIGHT: ${MAX_FUN_IN_FLIGHT:-4}
+      AI_JOB_TIMEOUT_SECONDS: ${AI_JOB_TIMEOUT_SECONDS:-60}
+      AI_WORKER_POLL_MS: ${AI_WORKER_POLL_MS:-250}
+      AI_JOB_RETENTION_HOURS: ${AI_JOB_RETENTION_HOURS:-12}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?ADMIN_TOKEN is required}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ${BROCAI_DATA_DIR:-/srv/brocai/data}/uploads:/app/data/uploads
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).read()"
+      interval: 10s
+      timeout: 4s
+      retries: 6
+      start_period: 20s
+    stop_grace_period: 20s
+    cpus: 2.25
+    mem_limit: 3584m
+    pids_limit: 512
+    logging: *bounded-logging
+    networks:
+      - brocai_internal
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${APP_BIND_HOST:-127.0.0.1}:${APP_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 4s
+      retries: 6
+      start_period: 10s
+    stop_grace_period: 10s
+    cpus: 0.5
+    mem_limit: 512m
+    pids_limit: 128
+    logging: *bounded-logging
+    networks:
+      - brocai_internal
+
+networks:
+  brocai_internal:
+    driver: bridge
