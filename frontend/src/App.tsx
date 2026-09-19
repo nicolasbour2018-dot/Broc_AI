@@ -30,7 +30,12 @@ const CONFIDENCE_LABELS: Record<SellerAnalysis['confidence'], string> = {
 }
 
 function BackButton({ onClick }: { onClick: () => void }) {
-  return <button className="back" onClick={onClick} type="button">← Accueil</button>
+  return (
+    <div className="screen-nav">
+      <button className="back" onClick={onClick} type="button">← Accueil</button>
+      <span className="screen-nav-brand" aria-label="BrocAI">BrocAI</span>
+    </div>
+  )
 }
 
 function queueMessage(progress: AiJobProgress | null, action = 'Analyse'): string {
@@ -46,23 +51,40 @@ function queueMessage(progress: AiJobProgress | null, action = 'Analyse'): strin
 function Home({ navigate }: { navigate: (view: View) => void }) {
   return (
     <main className="screen home">
-      <p className="eyebrow">Brocante Saint‑Fiacre · Épernon</p>
-      <h1>BrocAI</h1>
-      <p className="lead">Une photo, un stand, et la brocante devient plus simple.</p>
-      <div className="journey-grid">
-        <button className="journey-card" onClick={() => navigate('seller')}>
-          <span className="journey-icon">＋</span><strong>Je vends</strong><small>Créer et gérer les annonces de mon stand</small>
-        </button>
-        <button className="journey-card" onClick={() => navigate('market')}>
-          <span className="journey-icon">⌕</span><strong>Je cherche</strong><small>Voir les objets et trouver leur stand</small>
-        </button>
-        <button className="journey-card" onClick={() => navigate('assistant')}>
-          <span className="journey-icon">✦</span><strong>J’analyse</strong><small>Photographier un objet pour en savoir plus</small>
-        </button>
-        <button className="journey-card" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>
-          <span className="journey-icon">✺</span><strong>FunLab</strong><small>3 vœux pour donner une autre vie à ton objet</small>
-        </button>
-      </div>
+      <header className="home-hero">
+        <div className="brand-lockup">
+          <div><strong>BrocAI</strong><small>by Gaia Vector Studio</small></div>
+        </div>
+        <p className="eyebrow">Brocante Saint‑Fiacre · Épernon</p>
+        <h1>La brocante,<br /><span>plus simple.</span></h1>
+        <p className="lead">Vendez, trouvez ou analysez un objet en quelques gestes, directement depuis votre téléphone.</p>
+      </header>
+
+      <section className="journey-section" aria-labelledby="journey-title">
+        <div className="journey-heading">
+          <p className="section-kicker">Que souhaitez-vous faire ?</p>
+          <h2 id="journey-title">Choisissez votre parcours</h2>
+        </div>
+        <div className="journey-grid">
+          <button className="journey-card journey-seller" onClick={() => navigate('seller')}>
+            <span className="journey-icon" aria-hidden="true">＋</span>
+            <span className="journey-copy"><strong>Je vends un objet</strong><small>Photo → estimation assistée → annonce publiée sur le marché.</small><span className="journey-cta">Ouvrir mon stand →</span></span>
+          </button>
+          <button className="journey-card journey-market" onClick={() => navigate('market')}>
+            <span className="journey-icon" aria-hidden="true">⌕</span>
+            <span className="journey-copy"><strong>Je cherche un objet</strong><small>Explorez les objets disponibles et retrouvez facilement leur stand.</small><span className="journey-cta">Explorer le marché →</span></span>
+          </button>
+          <button className="journey-card journey-assistant" onClick={() => navigate('assistant')}>
+            <span className="journey-icon" aria-hidden="true">✦</span>
+            <span className="journey-copy"><strong>J’analyse un objet</strong><small>Prenez une photo pour l’identifier et obtenir des repères de prix.</small><span className="journey-cta">Analyser une photo →</span></span>
+          </button>
+        </div>
+      </section>
+
+      <aside className="fun-entry" aria-label="Expérience ludique BrocAI">
+        <div><span className="fun-entry-badge">Bonus</span><strong>Envie de jouer avec un objet ?</strong><small>FunLab transforme un objet en personnage, légende ou compagnon d’aventure.</small></div>
+        <button type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>Découvrir FunLab ✺</button>
+      </aside>
     </main>
   )
 }
@@ -215,8 +237,8 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
 
   if (!standNumber) return (
     <main className="screen"><BackButton onClick={goHome} />
-      <p className="eyebrow">Espace vendeur</p><h2>Quel est ton stand ?</h2>
-      <p className="lead small">Entre simplement ton numéro de stand pour créer une annonce ou retrouver celles déjà publiées.</p>
+      <p className="eyebrow">Je vends un objet</p><h2>Commencez par votre stand</h2>
+      <p className="lead small">Entrez votre numéro de stand pour publier un objet ou retrouver les annonces déjà créées.</p>
       <form className="stand-login" onSubmit={enterStand}>
         <label>Numéro de stand<input autoFocus required maxLength={40} inputMode="text" placeholder="Ex. 42" value={standInput} onChange={e => setStandInput(e.target.value)} /></label>
         <button className="primary" disabled={loading} type="submit">{loading ? 'Ouverture…' : 'Accéder à mon stand'}</button>
@@ -229,20 +251,20 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
   if (published) return (
     <main className="screen"><button className="back" onClick={() => void backToDashboard()}>← Mes annonces</button>
       <div className="success-mark">✓</div><h2>Annonce publiée</h2>
-      <p className="muted">Elle est maintenant visible dans le mini‑marché tant qu’elle n’est pas marquée comme vendue.</p>
+      <p className="muted">Elle est maintenant visible sur le marché BrocAI tant qu’elle n’est pas marquée comme vendue.</p>
       <article className="listing-card featured"><img src={published.image_url} alt="" /><div><span className="pill">Stand {published.stand_number}</span><h3>{published.title}</h3><strong>{published.price_eur} €</strong>{published.fun_line && <p className="fun-line final-fun-line">✦ {published.fun_line}</p>}</div></article>
       <button className="primary" onClick={() => void backToDashboard()}>Voir mes annonces</button>
-      <button className="secondary" onClick={openMarket}>Voir le mini‑marché</button>
+      <button className="secondary" onClick={openMarket}>Voir le marché BrocAI</button>
     </main>
   )
 
   if (sellerMode === 'dashboard') return (
     <main className="screen wide"><BackButton onClick={goHome} />
-      <div className="seller-heading"><div><p className="eyebrow">Espace vendeur</p><h2>Stand {standNumber}</h2></div><button className="text-action" type="button" onClick={changeStand}>Changer</button></div>
+      <div className="seller-heading"><div><p className="eyebrow">Je vends un objet</p><h2>Stand {standNumber}</h2></div><button className="text-action" type="button" onClick={changeStand}>Changer</button></div>
       <button className="primary" type="button" onClick={startCreate}>＋ Ajouter un objet</button>
       <div className="seller-section-title"><h3>Mes annonces</h3><span>{sellerItems.filter(item => item.sold_at === null).length} en vente · {sellerItems.filter(item => item.sold_at !== null).length} vendue(s)</span></div>
       {error && <p className="error">{error}</p>}
-      {loading ? <p className="muted">Chargement…</p> : sellerItems.length === 0 ? <div className="empty"><strong>Aucune annonce sur ce stand.</strong><span>Ajoute ton premier objet pour le faire apparaître dans le mini‑marché.</span></div> :
+      {loading ? <p className="muted">Chargement…</p> : sellerItems.length === 0 ? <div className="empty"><strong>Aucune annonce sur ce stand.</strong><span>Ajoutez votre premier objet pour le faire apparaître sur le marché BrocAI.</span></div> :
         <div className="seller-list">{sellerItems.map(item => {
           const sold = item.sold_at !== null
           return <article key={item.id} className={`seller-listing ${sold ? 'is-sold' : ''}`}>
@@ -257,7 +279,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
             </div>
           </article>
         })}</div>}
-      <button className="secondary" type="button" onClick={openMarket}>Voir le mini‑marché</button>
+      <button className="secondary" type="button" onClick={openMarket}>Voir le marché BrocAI</button>
     </main>
   )
 
@@ -291,9 +313,9 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
   )
 
   if (analysis) return (
-    <main className="screen"><button className="back" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Brouillon éditable</p><h2>Vérifie avant de publier</h2>
+    <main className="screen"><button className="back" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Brouillon éditable</p><h2>Vérifiez avant de publier</h2>
       <div className="stand-summary"><span>Publication sur</span><strong>Stand {standNumber}</strong></div>
-      {analysis.analysis_mode === 'mock-fallback' ? <div className="notice">Mode développement : ce brouillon est simulé. Passe <code>AI_PROVIDER=gemini</code> pour activer l’analyse réelle.</div> : <div className="analysis-meta"><span>Analyse IA</span><strong>Confiance {CONFIDENCE_LABELS[analysis.confidence]}</strong></div>}
+      {analysis.analysis_mode === 'mock-fallback' ? <div className="notice"><strong>Analyse assistée indisponible pour cette photo.</strong><span> Un brouillon de secours a été préparé : vérifiez simplement les informations avant de publier.</span></div> : <div className="analysis-meta"><span>Analyse assistée</span><strong>Confiance {CONFIDENCE_LABELS[analysis.confidence]}</strong></div>}
       {analysis.fun_line && analysis.analysis_mode !== 'mock-fallback' && <p className="fun-line">✦ {analysis.fun_line}</p>}
       <form onSubmit={(e) => { e.preventDefault(); setPreview(true) }} className="form-stack">
         <label>Titre<input required value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label>
@@ -308,11 +330,11 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
   )
 
   return (
-    <main className="screen"><button className="back" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Stand {standNumber} · Nouvelle annonce</p><h2>Photographie ton objet</h2><p className="lead small">Une photo suffit pour préparer le brouillon de l’annonce.</p>
+    <main className="screen"><button className="back" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Je vends · Stand {standNumber}</p><h2>Photographiez votre objet</h2><p className="lead small">Une photo suffit pour préparer le brouillon de l’annonce.</p>
       <label className="photo-drop"><span>📷</span><strong>{loading ? queueMessage(aiProgress) : 'Prendre une photo'}</strong><small>ou choisir une image dans la galerie</small><input disabled={loading} type="file" accept="image/*" capture="environment" onChange={e => choosePhoto(e.target.files?.[0])} /></label>
-      {loading && <div className="notice ai-queue-notice"><strong>{queueMessage(aiProgress)}</strong><span>Le mini‑marché reste accessible pendant l’attente.</span>{aiProgress?.status === 'queued' && aiProgress.queue_size > 0 && <small>{aiProgress.queue_size} demande{aiProgress.queue_size > 1 ? 's' : ''} actuellement en attente.</small>}</div>}
+      {loading && <div className="notice ai-queue-notice"><strong>{queueMessage(aiProgress)}</strong><span>Le marché BrocAI reste accessible pendant l’attente.</span>{aiProgress?.status === 'queued' && aiProgress.queue_size > 0 && <small>{aiProgress.queue_size} demande{aiProgress.queue_size > 1 ? 's' : ''} actuellement en attente.</small>}</div>}
       {error && <p className="error">{error}</p>}
-      <button className="secondary" onClick={openMarket}>Voir le mini‑marché</button>
+      <button className="secondary" onClick={openMarket}>Voir le marché BrocAI</button>
     </main>
   )
 }
@@ -410,12 +432,12 @@ function Market({ goHome }: { goHome: () => void }) {
   return (
     <main className="screen wide">
       <BackButton onClick={goHome} />
-      <p className="eyebrow">Mini‑marché</p>
-      <h2>Qu’est-ce que tu cherches ?</h2>
-      <p className="lead small">Les objets affichés ici sont encore disponibles. Ouvre une annonce pour connaître immédiatement son stand.</p>
+      <p className="eyebrow">Marché BrocAI · Chineur</p>
+      <h2>Je cherche un objet</h2>
+      <p className="lead small">Explorez les objets encore disponibles. Ouvrez une annonce pour voir son prix et retrouver immédiatement son stand.</p>
 
       <form className="search" onSubmit={submitSearch}>
-        <input aria-label="Rechercher dans le mini-marché" placeholder="vinyle, lampe, jouet…" value={query} onChange={e => setQuery(e.target.value)} />
+        <input aria-label="Rechercher dans le marché BrocAI" placeholder="vinyle, lampe, jouet…" value={query} onChange={e => setQuery(e.target.value)} />
         <button type="submit" disabled={loading}>{loading ? 'Recherche…' : 'Rechercher'}</button>
       </form>
 
@@ -439,7 +461,7 @@ function Market({ goHome }: { goHome: () => void }) {
       ) : items.length === 0 ? (
         <div className="empty">
           <strong>{appliedQuery || category ? 'Aucun objet ne correspond à ces filtres.' : 'Aucune annonce pour le moment.'}</strong>
-          <span>{appliedQuery || category ? 'Essaie un autre mot-clé, une autre catégorie ou affiche de nouveau tout le marché.' : 'Les objets en vente apparaîtront ici.'}</span>
+          <span>{appliedQuery || category ? 'Essayez un autre mot-clé, une autre catégorie ou affichez de nouveau tout le marché.' : 'Les objets en vente apparaîtront ici.'}</span>
           {(appliedQuery || category) && <button className="secondary empty-action" type="button" onClick={clearFilters}>Voir toutes les annonces</button>}
         </div>
       ) : (
@@ -527,9 +549,9 @@ function Assistant({ goHome }: { goHome: () => void }) {
   if (!analysis) return (
     <main className="screen">
       <BackButton onClick={goHome} />
-      <p className="eyebrow">J’analyse</p>
-      <h2>Photographie un objet</h2>
-      <p className="lead small">BrocAI te donne une fiche courte, puis tu disposes de trois questions sur cet objet.</p>
+      <p className="eyebrow">J’analyse un objet</p>
+      <h2>Photographie l’objet</h2>
+      <p className="lead small">BrocAI l’identifie, vous donne quelques repères utiles, puis vous permet de poser trois questions.</p>
       <label className="photo-drop">
         <span>✦</span>
         <strong>{loading ? queueMessage(aiProgress) : 'Prendre une photo'}</strong>
@@ -550,7 +572,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
   return (
     <main className="screen assistant-screen">
       <button className="back" onClick={resetObject}>← Analyser un autre objet</button>
-      <p className="eyebrow">Assistant photo</p>
+      <p className="eyebrow">Analyse d’objet</p>
       {photoUrl && <div className="detail-photo assistant-photo"><img src={photoUrl} alt={analysis.name} /></div>}
       <div className="assistant-meta"><span className="pill">{analysis.category}</span><span>Confiance {confidenceLabel}</span></div>
       <h2>{analysis.name}</h2>
@@ -563,7 +585,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
 
       <section className="assistant-wishes">
         <div className="assistant-section-heading">
-          <div><p className="eyebrow">Tes 3 questions</p><h3>{analysis.questions_remaining} restante{analysis.questions_remaining > 1 ? 's' : ''}</h3></div>
+          <div><p className="eyebrow">Vos 3 questions</p><h3>{analysis.questions_remaining} restante{analysis.questions_remaining > 1 ? 's' : ''}</h3></div>
           <span className="wish-counter">{3 - analysis.questions_remaining}/3</span>
         </div>
 
@@ -576,15 +598,15 @@ function Assistant({ goHome }: { goHome: () => void }) {
               <button disabled={loading} type="button" onClick={() => void ask('negotiate', 'Négocie pour moi')}>🤝 <strong>Négocie pour moi</strong><span>Une proposition courte et sympa</span></button>
             </div>
             <form className="assistant-free-question" onSubmit={submitFreeQuestion}>
-              <label>Ou pose ta propre question<textarea disabled={loading} maxLength={240} rows={2} placeholder="Ex. Comment reconnaître si c’est une reproduction ?" value={freeQuestion} onChange={e => setFreeQuestion(e.target.value)} /></label>
+              <label>Ou posez votre propre question<textarea disabled={loading} maxLength={240} rows={2} placeholder="Ex. Comment reconnaître si c’est une reproduction ?" value={freeQuestion} onChange={e => setFreeQuestion(e.target.value)} /></label>
               <button className="secondary" disabled={loading || !freeQuestion.trim()} type="submit">{loading ? 'Réponse…' : 'Envoyer ma question'}</button>
             </form>
           </>
         ) : (
-          <div className="empty assistant-limit"><strong>Tes trois questions sont utilisées.</strong><span>Tu peux photographier un autre objet pour repartir avec trois nouvelles questions.</span><button className="primary empty-action" type="button" onClick={resetObject}>Analyser un autre objet</button></div>
+          <div className="empty assistant-limit"><strong>Vos trois questions sont utilisées.</strong><span>Vous pouvez photographier un autre objet pour repartir avec trois nouvelles questions.</span><button className="primary empty-action" type="button" onClick={resetObject}>Analyser un autre objet</button></div>
         )}
 
-        {loading && aiProgress && <div className="notice ai-queue-notice compact-queue"><strong>{queueMessage(aiProgress, 'Réponse')}</strong>{aiProgress.status === 'queued' && <span>Tu peux rester sur cette fiche pendant l’attente.</span>}</div>}
+        {loading && aiProgress && <div className="notice ai-queue-notice compact-queue"><strong>{queueMessage(aiProgress, 'Réponse')}</strong>{aiProgress.status === 'queued' && <span>Vous pouvez rester sur cette fiche pendant l’attente.</span>}</div>}
         {error && <p className="error">{error}</p>}
         {answers.length > 0 && <div className="assistant-answers">{answers.map((item, index) => <article key={`${item.label}-${index}`}><span>Question {index + 1}</span><h4>{item.label}</h4><p>{item.answer}</p></article>)}</div>}
       </section>
@@ -619,5 +641,17 @@ export default function App() {
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
     return <Home navigate={setView} />
   }, [view])
-  return <div className="app-shell">{content}</div>
+  const showProductFooter = view !== 'admin' && view !== 'showroom'
+
+  return (
+    <div className={`app-shell view-${view}`}>
+      {content}
+      {showProductFooter && (
+        <footer className="product-footer">
+          <strong>BrocAI</strong>
+          <span>Une expérience Gaia Vector Studio</span>
+        </footer>
+      )}
+    </div>
+  )
 }
