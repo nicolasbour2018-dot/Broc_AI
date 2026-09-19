@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile, status
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, or_, select, text
@@ -13,7 +13,10 @@ from .funlab import router as funlab_router
 from .models import AiJob, AssistantScan, Event, Listing, utcnow
 from .schemas import (
     AiJobOut,
+    AssistantObjectAnalysis,
+    AssistantQuestionOut,
     AssistantQuestionRequest,
+    AssistantQuickReplies,
     HealthOut,
     ListingCreate,
     ListingOut,
@@ -55,6 +58,59 @@ def session_id(value: str | None) -> str:
 
 def emit_event(db: Session, sid: str, name: str, properties: dict | None = None) -> None:
     db.add(Event(session_id=sid, event_name=name, properties=properties or {}))
+
+
+def _format_euro(value: float) -> str:
+    rounded = round(float(value) * 2) / 2
+    if rounded.is_integer():
+        return f"{int(rounded)} €"
+    return f"{rounded:.1f}".replace(".", ",") + " €"
+
+
+def _cached_assistant_answer(
+    analysis: AssistantObjectAnalysis,
+    quick_replies: AssistantQuickReplies,
+    question_type: str,
+    displayed_price_eur: float | None,
+) -> str:
+    base_answer = getattr(quick_replies, question_type)
+    if displayed_price_eur is None or question_type == "tell_more":
+        return base_answer
+
+    price = max(0.0, float(displayed_price_eur))
+    price_range = analysis.price_range_eur
+
+    if question_type == "good_deal":
+        if price_range is not None:
+            if price < price_range.min:
+                context = f"À {_format_euro(price)}, le prix affiché est sous la fourchette indicative de {_format_euro(price_range.min)} à {_format_euro(price_range.max)}."
+            elif price <= price_range.max:
+                context = f"À {_format_euro(price)}, le prix affiché se situe dans la fourchette indicative de {_format_euro(price_range.min)} à {_format_euro(price_range.max)}."
+            else:
+                context = f"À {_format_euro(price)}, le prix affiché est au-dessus de la fourchette indicative de {_format_euro(price_range.min)} à {_format_euro(price_range.max)}."
+        elif analysis.estimated_price_eur is not None:
+            context = f"À {_format_euro(price)}, compare surtout avec le repère visuel d’environ {_format_euro(analysis.estimated_price_eur)}."
+        else:
+            context = f"À {_format_euro(price)}, la photo seule ne donne pas assez de repères pour classer précisément l’affaire."
+        return f"{context} {base_answer}"
+
+    if question_type == "negotiate":
+        if price <= 0:
+            return base_answer
+        if price_range is not None and price <= price_range.min:
+            context = f"À {_format_euro(price)}, le prix est déjà au niveau bas de la fourchette indicative : vise plutôt une petite remise si l’état réel le justifie."
+            return f"{context} {base_answer}"
+
+        floor = price_range.min if price_range is not None else 0.0
+        target = max(floor, price * 0.9)
+        target = round(target * 2) / 2
+        if target >= price:
+            target = max(0.0, round((price - 0.5) * 2) / 2)
+        if 0 < target < price:
+            context = f"À {_format_euro(price)} affichés, tu peux tenter {_format_euro(target)} comme première proposition, puis laisser le vendeur répondre."
+            return f"{context} {base_answer}"
+
+    return base_answer
 
 
 def ai_job_out(db: Session, job: AiJob) -> AiJobOut:
@@ -150,15 +206,15 @@ async def analyze_object_photo(
 
 @app.post(
     "/api/assistant/scans/{scan_id}/questions",
-    response_model=AiJobOut,
-    status_code=status.HTTP_202_ACCEPTED,
+    response_model=AiJobOut | AssistantQuestionOut,
 )
 def ask_object_question(
     scan_id: str,
     payload: AssistantQuestionRequest,
+    response: Response,
     x_session_id: str | None = Header(default=None),
     db: Session = Depends(get_db),
-) -> AiJobOut:
+) -> AiJobOut | AssistantQuestionOut:
     sid = session_id(x_session_id)
     scan = db.scalar(
         select(AssistantScan)
@@ -181,18 +237,55 @@ def ask_object_question(
     if scan.question_count + pending >= 3:
         raise HTTPException(status_code=409, detail="Les trois questions pour cet objet ont déjà été utilisées ou sont en cours.")
 
-    return enqueue_ai_job(
+    def enqueue_question() -> AiJobOut:
+        response.status_code = status.HTTP_202_ACCEPTED
+        return enqueue_ai_job(
+            db,
+            sid,
+            "assistant_question",
+            {
+                "scan_id": scan_id,
+                "question_type": payload.question_type,
+                "question": payload.question,
+                "displayed_price_eur": payload.displayed_price_eur,
+            },
+            related_id=scan_id,
+        )
+
+    if payload.question_type == "free":
+        return enqueue_question()
+
+    raw_quick_replies = (scan.analysis or {}).get("_assistant_quick_replies")
+    if not isinstance(raw_quick_replies, dict):
+        return enqueue_question()
+
+    try:
+        quick_replies = AssistantQuickReplies.model_validate(raw_quick_replies)
+        analysis = AssistantObjectAnalysis.model_validate(scan.analysis)
+    except Exception:
+        return enqueue_question()
+
+    answer = _cached_assistant_answer(
+        analysis,
+        quick_replies,
+        payload.question_type,
+        payload.displayed_price_eur,
+    )
+    scan.question_count += 1
+    remaining = max(0, 3 - scan.question_count)
+    emit_event(
         db,
         sid,
-        "assistant_question",
+        "object_chat_question",
         {
-            "scan_id": scan_id,
             "question_type": payload.question_type,
-            "question": payload.question,
-            "displayed_price_eur": payload.displayed_price_eur,
+            "question_index": scan.question_count,
+            "displayed_price_provided": payload.displayed_price_eur is not None,
+            "cached": True,
         },
-        related_id=scan_id,
     )
+    db.commit()
+    return AssistantQuestionOut(answer=answer, questions_remaining=remaining)
 
 
 @app.post("/api/seller/analyze", response_model=AiJobOut, status_code=status.HTTP_202_ACCEPTED)

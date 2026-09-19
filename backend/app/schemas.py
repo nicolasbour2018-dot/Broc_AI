@@ -82,6 +82,18 @@ class AssistantQuestionOut(BaseModel):
     answer: str = Field(min_length=1, max_length=1200)
     questions_remaining: int = Field(ge=0, le=3)
 
+
+class AssistantQuickReplies(BaseModel):
+    good_deal: str = Field(min_length=1, max_length=900)
+    tell_more: str = Field(min_length=1, max_length=900)
+    negotiate: str = Field(min_length=1, max_length=900)
+
+
+class AssistantAnalysisBundle(BaseModel):
+    analysis: AssistantObjectAnalysis
+    quick_replies: AssistantQuickReplies
+
+
 FunWishType = Literal["bring_to_life", "movie_star", "imaginary_past", "secret_power", "fairground_quest"]
 FunQuestType = Literal["grand_tour", "secret_mission", "fair_star"]
 

@@ -9,8 +9,10 @@ from pydantic import BaseModel, Field
 from .categories import LISTING_CATEGORIES, ListingCategory
 from .config import settings
 from .schemas import (
+    AssistantAnalysisBundle,
     AssistantObjectAnalysis,
     AssistantQuestionType,
+    AssistantQuickReplies,
     FunAnalysisBundle,
     FunCreativeBundle,
     FunCreativeDraft,
@@ -25,6 +27,8 @@ class VisionProvider(Protocol):
     def analyze_for_listing(self, image_key: str, original_filename: str | None) -> SellerAnalysis: ...
 
     def analyze_object(self, image_key: str) -> AssistantObjectAnalysis: ...
+
+    def analyze_assistant_bundle(self, image_key: str) -> AssistantAnalysisBundle: ...
 
     def analyze_fun_bundle(self, image_key: str) -> FunAnalysisBundle: ...
 
@@ -70,6 +74,11 @@ class GeminiObjectAnalysis(BaseModel):
 
 class GeminiQuestionAnswer(BaseModel):
     answer: str = Field(min_length=1, max_length=900)
+
+
+class GeminiAssistantBundleDraft(BaseModel):
+    analysis: GeminiObjectAnalysis
+    quick_replies: AssistantQuickReplies
 
 
 class GeminiFunBundleDraft(BaseModel):
@@ -132,6 +141,17 @@ class MockVisionProvider:
             confidence="low",
             caution="Cette analyse est un exemple local, pas une expertise de l’objet.",
             analysis_mode="mock-fallback",
+        )
+
+    def analyze_assistant_bundle(self, image_key: str) -> AssistantAnalysisBundle:
+        analysis = self.analyze_object(image_key)
+        return AssistantAnalysisBundle(
+            analysis=analysis,
+            quick_replies=AssistantQuickReplies(
+                good_deal="Compare le prix affiché à la fourchette indicative et vérifie surtout l’état réel de l’objet avant de décider.",
+                tell_more="Cet objet est présenté en mode développement : avec Gemini actif, BrocAI ajoute du contexte prudent sur son usage, son style et son époque possible.",
+                negotiate="Reste simple et souriant : demande si le vendeur peut faire un petit geste, sans présenter l’estimation visuelle comme une expertise.",
+            ),
         )
 
     def analyze_fun_bundle(self, image_key: str) -> FunAnalysisBundle:
@@ -377,6 +397,70 @@ Si aucune catégorie ne convient clairement, choisis "Autre".
             confidence=result.confidence,
             caution=result.caution.strip(),
             analysis_mode=f"gemini:{settings.gemini_model}",
+        )
+
+    def analyze_assistant_bundle(self, image_key: str) -> AssistantAnalysisBundle:
+        from google.genai import types
+
+        prompt = """
+Tu prépares en UNE seule analyse l’expérience Assistant photo de BrocAI à partir d’une photo d’objet prise dans une brocante française.
+
+Commence par identifier prudemment l’objet :
+- nom probable ;
+- UNE catégorie choisie strictement dans cette liste : {categories} ;
+- description factuelle très courte ;
+- contexte utile sur l’usage, le style ou l’époque seulement si c’est raisonnablement inférable ;
+- estimation de prix indicative et fourchette prudente si cela a du sens, sinon null ;
+- confiance low/medium/high ;
+- avertissement court sur l’incertitude principale.
+
+Prépare ensuite trois réponses rapides cohérentes avec cette même analyse :
+- good_deal : aide à juger une bonne affaire à partir de la fourchette estimée, sans supposer connaître le prix affiché exact ;
+- tell_more : apporte 2 à 3 phrases de contexte supplémentaire utile sans inventer de certitude ;
+- negotiate : donne une tactique courte, polie et naturelle pour négocier, sans inventer de prix affiché exact.
+
+Contraintes :
+- une photo ne permet pas de certifier marque, authenticité, matière, date, provenance ou valeur ;
+- les prix sont des repères de brocante / vide-grenier en France, pas une expertise ;
+- les trois réponses doivent pouvoir être affichées directement et rester utiles même avant saisie d’un prix affiché ;
+- reste bref, chaleureux et concret ;
+- si aucune catégorie ne convient clairement, choisis "Autre".
+
+Retourne un seul objet structuré contenant exactement "analysis" et "quick_replies".
+""".format(categories=" | ".join(LISTING_CATEGORIES)).strip()
+
+        response = self.client.models.generate_content(
+            model=settings.gemini_model,
+            contents=[prompt, self._image_part(image_key)],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=GeminiAssistantBundleDraft,
+                temperature=0.3,
+            ),
+        )
+        if not response.text:
+            raise RuntimeError("Gemini n'a renvoyé aucun bundle Assistant exploitable.")
+
+        result = GeminiAssistantBundleDraft.model_validate_json(response.text)
+        price_range = None
+        if result.analysis.price_min_eur is not None and result.analysis.price_max_eur is not None:
+            low, high = sorted((result.analysis.price_min_eur, result.analysis.price_max_eur))
+            price_range = PriceRange(min=low, max=high)
+
+        analysis = AssistantObjectAnalysis(
+            name=result.analysis.name.strip(),
+            category=result.analysis.category,
+            description=result.analysis.description.strip(),
+            context_note=result.analysis.context_note.strip(),
+            estimated_price_eur=result.analysis.estimated_price_eur,
+            price_range_eur=price_range,
+            confidence=result.analysis.confidence,
+            caution=result.analysis.caution.strip(),
+            analysis_mode=f"gemini:{settings.gemini_model}",
+        )
+        return AssistantAnalysisBundle(
+            analysis=analysis,
+            quick_replies=result.quick_replies,
         )
 
     def analyze_fun_bundle(self, image_key: str) -> FunAnalysisBundle:

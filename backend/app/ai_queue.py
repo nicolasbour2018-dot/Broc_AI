@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from .ai import vision_provider
 from .db import SessionLocal
 from .models import AiJob, AssistantScan, Event, utcnow
-from .schemas import AssistantObjectAnalysis, AssistantScanOut, FunAnalysisBundle
+from .schemas import AssistantAnalysisBundle, AssistantObjectAnalysis, AssistantScanOut, FunAnalysisBundle
 from .storage import delete_image
 
 TERMINAL_STATUSES = {"success", "error", "timeout"}
@@ -141,8 +141,11 @@ class AiQueueService:
                 # Persist feature-specific side effects in the same transaction as
                 # the terminal job status. This keeps restart recovery idempotent.
                 if feature == "assistant":
-                    analysis = AssistantObjectAnalysis.model_validate(result)
-                    scan = AssistantScan(session_id=sid, analysis=analysis.model_dump(mode="json"), question_count=0)
+                    bundle = AssistantAnalysisBundle.model_validate(result)
+                    analysis = bundle.analysis
+                    stored_analysis = analysis.model_dump(mode="json")
+                    stored_analysis["_assistant_quick_replies"] = bundle.quick_replies.model_dump(mode="json")
+                    scan = AssistantScan(session_id=sid, analysis=stored_analysis, question_count=0)
                     db.add(scan)
                     db.flush()
                     result = AssistantScanOut(
@@ -158,6 +161,7 @@ class AiQueueService:
                             "category": analysis.category.value,
                             "confidence": analysis.confidence,
                             "mode": analysis.analysis_mode,
+                            "precomputed_quick_replies": 3,
                         },
                     )
 
@@ -205,6 +209,7 @@ class AiQueueService:
                             "question_type": payload["question_type"],
                             "question_index": scan.question_count,
                             "displayed_price_provided": payload.get("displayed_price_eur") is not None,
+                            "cached": False,
                         },
                     )
 
@@ -277,8 +282,8 @@ class AiQueueService:
             return analysis.model_dump(mode="json")
 
         if feature == "assistant":
-            analysis = vision_provider.analyze_object(payload["image_key"])
-            return analysis.model_dump(mode="json")
+            bundle = vision_provider.analyze_assistant_bundle(payload["image_key"])
+            return bundle.model_dump(mode="json")
 
         if feature == "fun_analyze":
             bundle = vision_provider.analyze_fun_bundle(payload["image_key"])

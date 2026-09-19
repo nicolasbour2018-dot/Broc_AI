@@ -249,8 +249,11 @@ export async function askAssistantQuestion(
     })
   })
   if (!response.ok) throw new Error(await parseError(response))
-  const job = await response.json() as AiJob<AssistantQuestionResponse>
-  return waitForAiJob(job, onProgress)
+  const payload = await response.json() as AiJob<AssistantQuestionResponse> | AssistantQuestionResponse
+  if ('answer' in payload) {
+    return payload
+  }
+  return waitForAiJob(payload, onProgress)
 }
 
 
