@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:8080"
     upload_dir: Path = Path("data/uploads")
     max_upload_mb: int = 8
+    image_max_edge_px: int = 1920
+    image_jpeg_quality: int = 90
+    image_webp_quality: int = 90
     ai_provider: str = "mock"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"

@@ -20,6 +20,9 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
       UPLOAD_DIR: /app/data/uploads
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-8}
+      IMAGE_MAX_EDGE_PX: ${IMAGE_MAX_EDGE_PX:-1920}
+      IMAGE_JPEG_QUALITY: ${IMAGE_JPEG_QUALITY:-90}
+      IMAGE_WEBP_QUALITY: ${IMAGE_WEBP_QUALITY:-90}
       AI_PROVIDER: ${AI_PROVIDER:-mock}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}

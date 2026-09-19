@@ -195,12 +195,13 @@ async def analyze_object_photo(
     db: Session = Depends(get_db),
 ) -> AiJobOut:
     sid = session_id(x_session_id)
-    image_key = await save_image(photo)
+    saved = await save_image(photo)
+    emit_event(db, sid, "image_optimized", saved.telemetry("assistant"))
     return enqueue_ai_job(
         db,
         sid,
         "assistant",
-        {"image_key": image_key, "content_type": photo.content_type},
+        {"image_key": saved.image_key, "content_type": saved.sent_content_type},
     )
 
 
@@ -295,13 +296,14 @@ async def analyze_seller_photo(
     db: Session = Depends(get_db),
 ) -> AiJobOut:
     sid = session_id(x_session_id)
-    image_key = await save_image(photo)
+    saved = await save_image(photo)
+    emit_event(db, sid, "image_optimized", saved.telemetry("seller"))
     emit_event(db, sid, "seller_photo_submitted", {"content_type": photo.content_type})
     return enqueue_ai_job(
         db,
         sid,
         "seller",
-        {"image_key": image_key, "filename": photo.filename, "content_type": photo.content_type},
+        {"image_key": saved.image_key, "filename": photo.filename, "content_type": saved.sent_content_type},
     )
 
 

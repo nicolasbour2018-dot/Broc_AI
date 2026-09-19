@@ -70,13 +70,14 @@ async def analyze_fun_object(
     db: Session = Depends(get_db),
 ) -> AiJobOut:
     sid = _session_id(x_session_id)
-    image_key = await save_image(photo)
+    saved = await save_image(photo)
+    db.add(Event(session_id=sid, event_name="image_optimized", properties=saved.telemetry("fun_analyze")))
     db.add(Event(session_id=sid, event_name="fun_photo_submitted", properties={"content_type": photo.content_type}))
     return _enqueue(
         db,
         sid,
         "fun_analyze",
-        {"image_key": image_key, "content_type": photo.content_type},
+        {"image_key": saved.image_key, "content_type": saved.sent_content_type},
     )
 
 
@@ -158,8 +159,21 @@ async def create_fun_quest(
 
     image_keys: list[str] = []
     try:
-        for upload in (selfie, mission_one, mission_two):
-            image_keys.append(await save_image(upload))
+        uploads = (
+            ("fun_quest_selfie", selfie),
+            ("fun_quest_mission_one", mission_one),
+            ("fun_quest_mission_two", mission_two),
+        )
+        for flow, upload in uploads:
+            saved = await save_image(upload)
+            image_keys.append(saved.image_key)
+            db.add(
+                Event(
+                    session_id=sid,
+                    event_name="image_optimized",
+                    properties=saved.telemetry(flow),
+                )
+            )
 
         _, wish_index = _scan_with_available_wish(db, sid, scan_id)
         db.add(
