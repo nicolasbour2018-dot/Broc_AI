@@ -17,6 +17,7 @@ from .storage import delete_image
 
 TERMINAL_STATUSES = {"success", "error", "timeout"}
 ACTIVE_STATUSES = {"queued", "running"}
+FUN_FEATURES = {"fun_analyze", "fun_wish"}
 
 def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
     try:
@@ -29,6 +30,12 @@ def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
 MAX_AI_IN_FLIGHT = _env_int("MAX_AI_IN_FLIGHT", 20, 1, 100)
 AI_WORKER_POLL_MS = _env_int("AI_WORKER_POLL_MS", 250, 50, 5000)
 AI_JOB_RETENTION_HOURS = _env_int("AI_JOB_RETENTION_HOURS", 12, 1, 168)
+MAX_FUN_IN_FLIGHT = _env_int(
+    "MAX_FUN_IN_FLIGHT",
+    max(1, MAX_AI_IN_FLIGHT // 4),
+    1,
+    MAX_AI_IN_FLIGHT,
+)
 
 
 
@@ -89,13 +96,43 @@ class AiQueueService:
 
     def _claim_next_job(self) -> str | None:
         with SessionLocal.begin() as db:
+            # CORE always gets first access to free worker slots. This prevents
+            # a FunLab burst from starving seller/assistant traffic.
             job = db.scalar(
                 select(AiJob)
-                .where(AiJob.status == "queued")
+                .where(
+                    AiJob.status == "queued",
+                    AiJob.feature.notin_(FUN_FEATURES),
+                )
                 .order_by(AiJob.created_at.asc(), AiJob.id.asc())
                 .with_for_update(skip_locked=True)
                 .limit(1)
             )
+
+            if job is None:
+                fun_in_flight = int(
+                    db.scalar(
+                        select(func.count(AiJob.id)).where(
+                            AiJob.status == "running",
+                            AiJob.feature.in_(FUN_FEATURES),
+                        )
+                    )
+                    or 0
+                )
+                if fun_in_flight >= MAX_FUN_IN_FLIGHT:
+                    return None
+
+                job = db.scalar(
+                    select(AiJob)
+                    .where(
+                        AiJob.status == "queued",
+                        AiJob.feature.in_(FUN_FEATURES),
+                    )
+                    .order_by(AiJob.created_at.asc(), AiJob.id.asc())
+                    .with_for_update(skip_locked=True)
+                    .limit(1)
+                )
+
             if job is None:
                 return None
             job.status = "running"
@@ -105,7 +142,12 @@ class AiQueueService:
                 db,
                 job.session_id,
                 "ai_analysis_started",
-                {"feature": job.feature, "job_id": job.id},
+                {
+                    "feature": job.feature,
+                    "job_id": job.id,
+                    "lane": "fun" if job.feature in FUN_FEATURES else "core",
+                    "max_fun_in_flight": MAX_FUN_IN_FLIGHT,
+                },
             )
             return job.id
 
