@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import csv
 import hmac
 import io
 import json
+import logging
 import os
 import resource
+import shutil
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -17,8 +20,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .db import engine, get_db
-from .models import AiJob, AssistantScan, Event, Listing, utcnow
+from .db import SessionLocal, engine, get_db
+from .models import AiJob, AssistantScan, Event, Listing, MetricSnapshot, utcnow
 
 router = APIRouter(prefix="/api", tags=["telemetry"])
 health_router = APIRouter(tags=["health"])
@@ -26,6 +29,8 @@ TERMINAL_STATUSES = {"success", "error", "timeout"}
 FUN_FEATURES = ("fun_analyze", "fun_wish")
 AI_ROUTING_MODES = {"auto", "gemini_only", "qwen_only"}
 CONFIGURED_AI_ROUTING_MODE = settings.ai_routing_mode.strip().lower()
+METRIC_SNAPSHOT_INTERVAL_SECONDS = 20
+logger = logging.getLogger(__name__)
 
 
 def _bounded_env_int(name: str, default: int, maximum: int = 100) -> int:
@@ -148,6 +153,18 @@ def _average(values: list[float]) -> float | None:
     return round(sum(values) / len(values), 1)
 
 
+def _percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * percentile
+    lower_index = int(position)
+    upper_index = min(lower_index + 1, len(ordered) - 1)
+    fraction = position - lower_index
+    value = ordered[lower_index] + (ordered[upper_index] - ordered[lower_index]) * fraction
+    return round(value, 1)
+
+
 def _read_system_metrics() -> dict[str, int | float | None]:
     cpu_count = os.cpu_count() or 1
     load_1m: float | None = None
@@ -186,6 +203,17 @@ def _read_system_metrics() -> dict[str, int | float | None]:
     except (ValueError, OSError):
         pass
 
+    disk_total_mb: float | None = None
+    disk_used_mb: float | None = None
+    disk_usage_percent: float | None = None
+    try:
+        disk = shutil.disk_usage(settings.upload_dir)
+        disk_total_mb = round(disk.total / 1024 / 1024, 1)
+        disk_used_mb = round(disk.used / 1024 / 1024, 1)
+        disk_usage_percent = round(disk.used / disk.total * 100, 1) if disk.total else None
+    except OSError:
+        pass
+
     return {
         "cpu_count": cpu_count,
         "load_1m": load_1m,
@@ -194,6 +222,9 @@ def _read_system_metrics() -> dict[str, int | float | None]:
         "memory_total_mb": total_mb,
         "memory_usage_percent": usage_percent,
         "process_rss_mb": process_rss_mb,
+        "disk_used_mb": disk_used_mb,
+        "disk_total_mb": disk_total_mb,
+        "disk_usage_percent": disk_usage_percent,
     }
 
 
@@ -223,6 +254,15 @@ def _analysis_mode(job: AiJob) -> str | None:
         return None
     value = result.get("analysis_mode")
     return value if isinstance(value, str) and value else None
+
+
+def _provider_and_model(analysis_mode: str | None) -> tuple[str | None, str | None]:
+    if not analysis_mode:
+        return None, None
+    if ":" not in analysis_mode:
+        return analysis_mode, None
+    provider, model = analysis_mode.split(":", 1)
+    return provider, model
 
 
 def _ops_status(
@@ -327,13 +367,18 @@ def update_admin_routing(payload: AdminRoutingIn, db: Session = Depends(get_db))
 
 @router.get("/admin/diagnostics", dependencies=[Depends(_require_admin_token)])
 def admin_diagnostics(db: Session = Depends(get_db)) -> dict[str, Any]:
-    return admin_metrics(db)
+    return _collect_admin_metrics(db)
 
 
 @router.get("/admin/metrics", dependencies=[Depends(_require_admin_token)])
 def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
+    return _collect_admin_metrics(db)
+
+
+def _collect_admin_metrics(db: Session) -> dict[str, Any]:
     now = utcnow()
     readiness = _readiness_snapshot()
+    one_minute_ago = now - timedelta(minutes=1)
     one_hour_ago = now - timedelta(hours=1)
     fifteen_minutes_ago = now - timedelta(minutes=15)
 
@@ -367,6 +412,16 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
     )
     recent_latencies = [float(job.duration_ms) for job in recent_terminal_jobs if job.duration_ms is not None]
     recent_waits = [float(wait) for job in recent_terminal_jobs if (wait := _queue_wait_ms(job)) is not None]
+    recent_core_waits = [
+        float(wait)
+        for job in recent_terminal_jobs
+        if _lane(job.feature) == "core" and (wait := _queue_wait_ms(job)) is not None
+    ]
+    recent_fun_waits = [
+        float(wait)
+        for job in recent_terminal_jobs
+        if _lane(job.feature) == "fun" and (wait := _queue_wait_ms(job)) is not None
+    ]
 
     status_counts = {
         name: int(db.scalar(select(func.count(AiJob.id)).where(AiJob.status == name)) or 0)
@@ -406,6 +461,40 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
     recent_15_terminal = sum(recent_15_status_counts.values())
     recent_15_errors = recent_15_status_counts["error"] + recent_15_status_counts["timeout"]
 
+    last_minute_calls = int(
+        db.scalar(select(func.count(AiJob.id)).where(AiJob.created_at >= one_minute_ago)) or 0
+    )
+    last_minute_errors = int(
+        db.scalar(
+            select(func.count(AiJob.id)).where(
+                AiJob.status == "error",
+                AiJob.completed_at.is_not(None),
+                AiJob.completed_at >= one_minute_ago,
+            )
+        )
+        or 0
+    )
+    last_minute_timeouts = int(
+        db.scalar(
+            select(func.count(AiJob.id)).where(
+                AiJob.status == "timeout",
+                AiJob.completed_at.is_not(None),
+                AiJob.completed_at >= one_minute_ago,
+            )
+        )
+        or 0
+    )
+    last_minute_rate_limits = int(
+        db.scalar(
+            select(func.count(AiJob.id)).where(
+                AiJob.completed_at.is_not(None),
+                AiJob.completed_at >= one_minute_ago,
+                AiJob.error_code.contains("429"),
+            )
+        )
+        or 0
+    )
+
     provider_jobs = list(
         db.scalars(
             select(AiJob)
@@ -425,6 +514,15 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
     provider_qwen = sum(mode.startswith("qwen-hf:") for mode in provider_modes)
     provider_other = max(0, len(provider_modes) - provider_primary - provider_quality - provider_qwen)
     routing_mode = settings.ai_routing_mode.strip().lower()
+    active_analysis_mode = provider_modes[0] if provider_modes else None
+    active_provider, active_model = _provider_and_model(active_analysis_mode)
+    routing_control = _routing_control()
+    if routing_mode == "auto" and provider_qwen > 0:
+        fallback_state = "used_last_hour"
+    elif routing_control["fallback_configured"]:
+        fallback_state = "configured"
+    else:
+        fallback_state = "not_configured"
 
     activity_jobs = list(
         db.scalars(select(AiJob).order_by(AiJob.created_at.desc()).limit(12)).all()
@@ -515,6 +613,37 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
         for event in ops_events
     ]
 
+    system_metrics = _read_system_metrics()
+    metric_snapshot = {
+        "timestamp": now.isoformat(),
+        "active_sessions": None,
+        "queued_core": core_queued,
+        "queued_fun": fun_queued,
+        "running_core": core_running,
+        "running_fun": fun_running,
+        "core_wait_p50_ms": _percentile(recent_core_waits, 0.50),
+        "core_wait_p95_ms": _percentile(recent_core_waits, 0.95),
+        "fun_wait_p50_ms": _percentile(recent_fun_waits, 0.50),
+        "fun_wait_p95_ms": _percentile(recent_fun_waits, 0.95),
+        "inference_p50_ms": _percentile(recent_latencies, 0.50),
+        "inference_p95_ms": _percentile(recent_latencies, 0.95),
+        "cpu_load_percent_of_capacity": system_metrics["load_percent_of_capacity"],
+        "ram_usage_percent": system_metrics["memory_usage_percent"],
+        "disk_usage_percent": system_metrics["disk_usage_percent"],
+        "provider": active_provider,
+        "model": active_model,
+        "routing_mode": routing_mode,
+        "rpm": last_minute_calls,
+        "errors_last_minute": last_minute_errors,
+        "timeouts_last_minute": last_minute_timeouts,
+        "rate_limits_429_last_minute": last_minute_rate_limits,
+        "tokens": None,
+        "estimated_cost_usd": None,
+        "load_state": ops["level"],
+        "fun_cooldown_seconds": None,
+        "fallback_state": fallback_state,
+    }
+
     return {
         "generated_at": now.isoformat(),
         "ops": ops,
@@ -526,7 +655,7 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
             "storage": readiness["storage"],
             "routing_mode": routing_mode,
         },
-        "routing_control": _routing_control(),
+        "routing_control": routing_control,
         "ops_timeline": ops_timeline,
         "queue": {
             "queued": queued,
@@ -544,6 +673,16 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
             "recent_sample_size": len(recent_terminal_jobs),
             "average_latency_ms": _average(recent_latencies),
             "average_queue_wait_ms": _average(recent_waits),
+            "inference_p50_ms": metric_snapshot["inference_p50_ms"],
+            "inference_p95_ms": metric_snapshot["inference_p95_ms"],
+            "core_wait_p50_ms": metric_snapshot["core_wait_p50_ms"],
+            "core_wait_p95_ms": metric_snapshot["core_wait_p95_ms"],
+            "fun_wait_p50_ms": metric_snapshot["fun_wait_p50_ms"],
+            "fun_wait_p95_ms": metric_snapshot["fun_wait_p95_ms"],
+            "last_minute_calls": last_minute_calls,
+            "last_minute_errors": last_minute_errors,
+            "last_minute_timeouts": last_minute_timeouts,
+            "last_minute_rate_limits_429": last_minute_rate_limits,
             "last_hour_success_rate_percent": success_rate,
             "last_hour_error_rate_percent": error_rate,
             "last_hour_terminal": last_hour_terminal,
@@ -573,10 +712,50 @@ def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
             "average_latency_ms": _average(catalogue_latencies),
             "recent_sample_size": len(catalogue_latencies),
         },
-        "system": _read_system_metrics(),
+        "system": system_metrics,
+        "metric_snapshot": metric_snapshot,
         "recent_jobs": recent_rows,
         "recent_errors": recent_errors,
     }
+
+
+class MetricSnapshotRecorder:
+    def __init__(self) -> None:
+        self._task: asyncio.Task[None] | None = None
+
+    async def start(self) -> None:
+        if self._task is None:
+            self._task = asyncio.create_task(self._run(), name="brocai-metric-snapshots")
+
+    async def stop(self) -> None:
+        if self._task is None:
+            return
+        self._task.cancel()
+        try:
+            await self._task
+        except asyncio.CancelledError:
+            pass
+        self._task = None
+
+    async def _run(self) -> None:
+        while True:
+            try:
+                await asyncio.to_thread(self._capture)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Periodic metric snapshot persistence failed")
+            await asyncio.sleep(METRIC_SNAPSHOT_INTERVAL_SECONDS)
+
+    @staticmethod
+    def _capture() -> None:
+        with SessionLocal.begin() as db:
+            metrics = _collect_admin_metrics(db)
+            snapshot = metrics["metric_snapshot"]
+            db.add(MetricSnapshot(captured_at=datetime.fromisoformat(snapshot["timestamp"]), snapshot=snapshot))
+
+
+metric_snapshot_recorder = MetricSnapshotRecorder()
 
 
 def _events_export(db: Session) -> list[dict[str, Any]]:
