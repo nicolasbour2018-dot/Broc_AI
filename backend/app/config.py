@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     ai_provider: str = "mock"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_quality_model: str = "gemini-3.6-flash"
+    ai_force_quality_scale_up: bool = False
     hf_token: str | None = None
     hf_router_url: str = "https://router.huggingface.co/v1/chat/completions"
     hf_qwen_model: str = "Qwen/Qwen3.5-35B-A3B:deepinfra"

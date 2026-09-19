@@ -739,6 +739,10 @@ def _primary_error_code(exc: Exception) -> str:
     return "AI-PRIMARY-ERROR"
 
 
+def _quality_error_code(exc: Exception) -> str:
+    return _primary_error_code(exc).replace("AI-PRIMARY-", "AI-QUALITY-", 1)
+
+
 def _fallback_error_code(exc: Exception) -> str:
     text = str(exc).lower()
     for status_code in (400, 401, 402, 403, 408, 429, 500, 502, 503, 504):
@@ -766,6 +770,7 @@ def _fallback_error_code(exc: Exception) -> str:
 class RoutedVisionProvider:
     def __init__(self) -> None:
         self._primary: GeminiVisionProvider | None = None
+        self._quality: GeminiVisionProvider | None = None
         self._fallback: QwenVisionProvider | None = None
 
     @property
@@ -773,6 +778,12 @@ class RoutedVisionProvider:
         if self._primary is None:
             self._primary = GeminiVisionProvider()
         return self._primary
+
+    @property
+    def quality(self) -> GeminiVisionProvider:
+        if self._quality is None:
+            self._quality = GeminiVisionProvider(model_id=settings.gemini_quality_model)
+        return self._quality
 
     @property
     def fallback(self) -> QwenVisionProvider:
@@ -812,6 +823,65 @@ class RoutedVisionProvider:
                 primary_code=primary_code,
             ) from exc
 
+    @staticmethod
+    def _analysis_confidence(operation: str, result: Any) -> str | None:
+        if operation == "analyze_for_listing" and isinstance(result, SellerAnalysis):
+            return result.confidence
+        if operation == "analyze_assistant_bundle" and isinstance(result, AssistantAnalysisBundle):
+            return result.analysis.confidence
+        if operation == "analyze_fun_bundle" and isinstance(result, FunAnalysisBundle):
+            return result.analysis.confidence
+        return None
+
+    def _should_scale_up_quality(self, operation: str, result: Any) -> bool:
+        confidence = self._analysis_confidence(operation, result)
+        if confidence is None:
+            return False
+        return settings.ai_force_quality_scale_up or confidence == "low"
+
+    def _call_quality(self, operation: str, primary_result: Any, *args: Any) -> Any:
+        confidence = self._analysis_confidence(operation, primary_result)
+        logger.info(
+            "AI quality scale-up requested operation=%s primary_confidence=%s forced=%s model=%s",
+            operation,
+            confidence,
+            settings.ai_force_quality_scale_up,
+            settings.gemini_quality_model,
+        )
+        try:
+            if operation == "analyze_for_listing":
+                quality_result = self.quality.analyze_for_listing(*args)
+            elif operation == "analyze_assistant_bundle":
+                quality_analysis = self.quality.analyze_object(args[0])
+                quality_result = AssistantAnalysisBundle(
+                    analysis=quality_analysis,
+                    quick_replies=primary_result.quick_replies,
+                )
+            elif operation == "analyze_fun_bundle":
+                quality_analysis = self.quality.analyze_object(args[0])
+                quality_result = FunAnalysisBundle(
+                    analysis=quality_analysis,
+                    fun=primary_result.fun,
+                )
+            else:
+                return primary_result
+        except Exception as exc:
+            logger.warning(
+                "AI quality scale-up failed operation=%s code=%s model=%s error=%s; keeping primary result",
+                operation,
+                _quality_error_code(exc),
+                settings.gemini_quality_model,
+                type(exc).__name__,
+            )
+            return primary_result
+
+        logger.info(
+            "AI quality scale-up succeeded operation=%s model=%s",
+            operation,
+            settings.gemini_quality_model,
+        )
+        return quality_result
+
     def _route(self, operation: str, *args: Any) -> Any:
         mode = self._routing_mode()
 
@@ -819,7 +889,7 @@ class RoutedVisionProvider:
             return self._call_fallback(operation, *args)
 
         try:
-            return self._call_primary(operation, *args)
+            primary_result = self._call_primary(operation, *args)
         except Exception as exc:
             primary_code = _primary_error_code(exc)
             if mode == "gemini_only" or not _should_use_technical_fallback(exc):
@@ -844,6 +914,10 @@ class RoutedVisionProvider:
                 *args,
                 primary_code=primary_code,
             )
+
+        if self._should_scale_up_quality(operation, primary_result):
+            return self._call_quality(operation, primary_result, *args)
+        return primary_result
 
     def analyze_for_listing(self, image_key: str, original_filename: str | None) -> SellerAnalysis:
         return self._route("analyze_for_listing", image_key, original_filename)
