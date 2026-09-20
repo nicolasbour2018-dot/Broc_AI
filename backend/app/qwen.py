@@ -217,8 +217,10 @@ Retourne :
 - un niveau de confiance low/medium/high ;
 - éventuellement une très courte touche fun.
 
-Privilégie des prix réalistes de transaction sur place. Pour un objet courant, favorise un prix attractif.
-Ne sous-évalue pas mécaniquement un objet potentiellement rare : élargis plutôt la fourchette et baisse la confiance.
+Raisonne comme un vendeur qui veut réellement vendre aujourd'hui, pas comme une annonce en ligne ou un prix neuf.
+Pour un objet courant, non signé et sans caractère collector visible, pars franchement dans le bas des prix : beaucoup de petits objets se vendent 0,50-5 € et beaucoup d'objets usuels 3-10 €. Monte vers 10-20 € seulement si la taille, l'état apparent, la qualité ou le caractère complet le justifient. Au-delà de 20-30 €, exige un indice visuel concret.
+En cas d'incertitude, choisis plutôt la moitié basse : le vendeur pourra augmenter ensuite.
+Ne brade pas un objet qui semble réellement rare ou recherché : élargis alors la fourchette et baisse la confiance.
 """.format(categories=" | ".join(LISTING_CATEGORIES)).strip()
         result = self._call(
             operation="seller",
@@ -250,7 +252,8 @@ Reste prudent : une photo ne permet pas de certifier une marque, une authenticit
 
 Retourne une fiche courte avec le nom probable, UNE catégorie parmi {categories}, une description factuelle,
 un contexte prudent, une estimation et une fourchette de brocante si cela a du sens sinon null,
-une confiance low/medium/high et un avertissement court. Si aucune catégorie ne convient, choisis "Autre".
+une confiance low/medium/high et un avertissement court. Pour un objet courant non collector, privilégie franchement le bas des prix plausibles : souvent 0,50-5 € pour de petits objets et 3-10 € pour beaucoup d'objets usuels ; un prix supérieur à 20-30 € doit être justifié visuellement. En cas d'hésitation, choisis la moitié basse.
+Si aucune catégorie ne convient, choisis "Autre".
 """.format(categories=" | ".join(LISTING_CATEGORIES)).strip()
         result = self._call(
             operation="assistant_object",
@@ -270,14 +273,14 @@ Commence par identifier prudemment l’objet :
 - UNE catégorie choisie strictement dans cette liste : {categories} ;
 - description factuelle très courte ;
 - contexte utile sur l’usage, le style ou l’époque seulement si c’est raisonnablement inférable ;
-- estimation de prix indicative et fourchette prudente si cela a du sens, sinon null ;
+- estimation de prix indicative et fourchette prudente si cela a du sens, sinon null. Pour un objet courant non collector, privilégie la moitié basse des prix plausibles : souvent 0,50-5 € pour de petits objets et 3-10 € pour beaucoup d'objets usuels. Ne dépasse 20-30 € que si un indice visuel concret le justifie ;
 - confiance low/medium/high ;
 - avertissement court sur l’incertitude principale.
 
 Prépare ensuite trois réponses rapides cohérentes :
 - good_deal : aide à juger une bonne affaire sans supposer connaître le prix affiché exact ;
 - tell_more : 2 à 3 phrases de contexte supplémentaire utile ;
-- negotiate : tactique courte, polie et naturelle, sans inventer de prix affiché exact.
+- negotiate : fournis UNIQUEMENT une justification très courte et positive qui pourra être affichée après une phrase de négociation générée par l'application. Une phrase maximum. Ne critique jamais le vendeur, son prix, son stand ou l'objet ; l'humour éventuel porte uniquement sur la situation de brocante.
 
 Une photo ne permet pas de certifier marque, authenticité, matière, date, provenance ou valeur.
 Les prix sont des repères de brocante en France, pas une expertise.
@@ -300,14 +303,17 @@ Retourne exactement "analysis" et "quick_replies".
 Tu prépares en UNE seule analyse l’expérience FunLab de BrocAI à partir d’une photo d’objet prise dans une brocante française.
 
 Identifie prudemment l’objet : nom, UNE catégorie parmi {categories}, description courte, contexte prudent,
-estimation/fourchette de brocante si pertinente, confiance low/medium/high et avertissement.
+estimation/fourchette de brocante si pertinente, confiance low/medium/high et avertissement. Pour un objet courant non collector, privilégie la moitié basse des prix plausibles : souvent 0,50-5 € pour de petits objets et 3-10 € pour beaucoup d'objets usuels.
 
-Prépare ensuite quatre créations courtes :
-- bring_to_life : personnage, tempérament, mini-réplique et micro-histoire ;
-- movie_star : affiche de film imaginaire, slogan et mini-pitch ;
-- imaginary_past : biographie très courte et explicitement inventée ;
-- secret_power : super-pouvoir absurde, faiblesse ridicule et punchline.
+Prépare ensuite quatre créations courtes et vraiment différentes :
+- bring_to_life : personnage, tempérament, mini-réplique et chute amusante ;
+- movie_star : affiche de film imaginaire, titre marquant, slogan et mini-pitch absurde lié à l'objet ;
+- imaginary_past : mini-biographie explicitement inventée, avec un détail précis lié à l'objet et une chute ;
+- secret_power : super-pouvoir inattendu, faiblesse ridicule et punchline.
 
+Chaque création doit ressembler à une mini-carte souvenir qu'une famille ou un enfant aurait envie de garder en capture d'écran : titre court, sous-titre punchy, histoire de 2 à 3 phrases courtes.
+Humour familial, tendre ou absurde ; jamais moqueur, humiliant, violent, effrayant ou sexualisé.
+Exploite les caractéristiques propres à CET objet et évite les histoires génériques. N'explique jamais la blague.
 N’invente jamais marque, authenticité, origine, matière, époque ou valeur comme un fait certain.
 Chaque création contient title, subtitle, story, badge et son wish_type exact.
 Retourne exactement "analysis" et "fun".
@@ -338,12 +344,13 @@ Retourne exactement "analysis" et "fun".
         intent = {
             "good_deal": "Évalue si cela semble être une bonne affaire et rappelle l'incertitude.",
             "tell_more": "Donne un peu plus de contexte utile sans inventer de certitude.",
-            "negotiate": "Aide à négocier avec tact en 2 à 3 phrases maximum.",
+            "negotiate": "Donne d'abord EXACTEMENT la phrase à lire au vendeur, chaleureuse, naturelle et légèrement drôle, sans être offensante. Puis saute une ligne et ajoute une justification d'une phrase maximum. Si un prix est fourni, propose une cible raisonnable. Ne critique jamais le vendeur, son prix, son stand ou l'objet.",
             "free": "Réponds directement à la question libre sans inventer ce qui n'est pas établi.",
         }[question_type]
         prompt = f"""
 Tu réponds à une question sur un objet de brocante déjà analysé.
 Sois bref, utile, chaleureux et prudent.
+Pour une négociation, la première ligne doit être uniquement la phrase à dire au vendeur, puis une ligne vide, puis une justification d'une phrase maximum. Humour léger et complice uniquement, jamais de sarcasme ni de jugement sur le vendeur, son prix, son stand ou l'objet.
 
 Fiche objet :
 {json.dumps(analysis.model_dump(mode='json'), ensure_ascii=False)}
@@ -377,6 +384,8 @@ Question libre : {question or 'aucune'}
         }
         prompt = f"""
 Tu écris pour le FunLab de BrocAI. Le sujet principal reste l'objet.
+Le résultat doit ressembler à une mini-carte souvenir amusante qu'une famille ou un enfant aurait envie de garder en capture d'écran : titre court, accroche nette, puis 2 à 3 phrases courtes avec une vraie petite chute.
+Humour familial, absurde ou tendre, jamais moqueur, humiliant, violent, effrayant ou sexualisé. Utilise les détails propres à CET objet et évite les histoires interchangeables. N'explique jamais la blague.
 Tout élément historique, biographique, héroïque ou cinématographique est imaginaire.
 N'affirme jamais marque, authenticité, origine ou valeur comme certaine.
 

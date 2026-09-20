@@ -77,7 +77,16 @@ def _cached_assistant_answer(
     displayed_price_eur: float | None,
 ) -> str:
     base_answer = getattr(quick_replies, question_type)
-    if displayed_price_eur is None or question_type == "tell_more":
+    if question_type == "tell_more":
+        return base_answer
+
+    if question_type == "negotiate" and displayed_price_eur is None:
+        return (
+            "« Il me plaît bien ! Vous pourriez me faire un petit prix ? 🙂 »"
+            f"\n\n{base_answer}"
+        )
+
+    if displayed_price_eur is None:
         return base_answer
 
     price = max(0.0, float(displayed_price_eur))
@@ -99,10 +108,20 @@ def _cached_assistant_answer(
 
     if question_type == "negotiate":
         if price <= 0:
-            return base_answer
+            return (
+                "« Il me plaît bien ! Vous pourriez me faire un petit prix ? 🙂 »"
+                f"\n\n{base_answer}"
+            )
         if price_range is not None and price <= price_range.min:
-            context = f"À {_format_euro(price)}, le prix est déjà au niveau bas de la fourchette indicative : vise plutôt une petite remise si l’état réel le justifie."
-            return f"{context} {base_answer}"
+            phrase = (
+                "« Il me plaît bien ! Si je vous le prends maintenant, "
+                "vous pourriez me faire un tout petit geste ? 🙂 »"
+            )
+            context = (
+                f"À {_format_euro(price)}, le prix est déjà dans le bas de la fourchette : "
+                "mieux vaut demander un petit geste sans insister."
+            )
+            return f"{phrase}\n\n{context} {base_answer}"
 
         floor = price_range.min if price_range is not None else 0.0
         target = max(floor, price * 0.9)
@@ -110,8 +129,15 @@ def _cached_assistant_answer(
         if target >= price:
             target = max(0.0, round((price - 0.5) * 2) / 2)
         if 0 < target < price:
-            context = f"À {_format_euro(price)} affichés, tu peux tenter {_format_euro(target)} comme première proposition, puis laisser le vendeur répondre."
-            return f"{context} {base_answer}"
+            phrase = (
+                "« Il me plaît bien, mais mon budget brocante négocie aussi 😄 "
+                f"Vous me le laisseriez à {_format_euro(target)} ? »"
+            )
+            context = (
+                f"Tu proposes environ 10 % sous les {_format_euro(price)} affichés : "
+                "c’est une ouverture raisonnable et le vendeur reste libre de contre-proposer."
+            )
+            return f"{phrase}\n\n{context} {base_answer}"
 
     return base_answer
 
