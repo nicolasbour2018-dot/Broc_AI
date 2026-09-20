@@ -1073,3 +1073,118 @@
   .gildoni-record-side { justify-items:start; text-align:left; min-width:0; }
   .gildoni-public-hero { padding:1.35rem; }
 }
+
+/* === Garage Hildoni — product demo polish === */
+.showroom-theme-garage { background:linear-gradient(145deg,#f5f8fb 0%,#fff 58%,#f1f5f9 100%); }
+.showroom-theme-garage .showroom-content { padding:0 0 34px 8px; }
+.gildoni-home { padding-top:8px; }
+.gildoni-public-hero.product { min-height:310px; display:grid; grid-template-columns:minmax(0,1.6fr) minmax(230px,.55fr); gap:32px; align-items:center; padding:2.4rem; background:linear-gradient(118deg,#0c2f51 0%,#123a63 58%,#1b527e 100%); border-bottom:7px solid #ffd43b; box-shadow:0 18px 50px rgba(18,58,99,.14); }
+.gildoni-hero-copy h1 { max-width:760px; line-height:1.02; }
+.gildoni-hero-copy p { max-width:690px; color:#dce8f2; line-height:1.55; }
+.gildoni-hero-actions { display:flex; gap:9px; flex-wrap:wrap; margin-top:22px; }
+.gildoni-hero-actions button,.gildoni-home-panel > button,.gildoni-result-actions button,.gildoni-booking-summary > button { border:0; border-radius:9px; background:#ffd43b; color:#123a63; min-height:46px; padding:10px 17px; font-weight:850; cursor:pointer; }
+.gildoni-hero-actions button.secondary,.gildoni-result-actions button.secondary { background:transparent; color:#fff; border:1px solid rgba(255,255,255,.35); }
+.gildoni-result-actions button.secondary { color:#123a63; border-color:#cbd8e4; background:#fff; }
+.gildoni-hero-badge { min-height:195px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; border:1px solid rgba(255,255,255,.19); border-radius:18px; background:rgba(255,255,255,.06); backdrop-filter:blur(6px); }
+.gildoni-hero-badge > span { width:76px; height:76px; display:grid; place-items:center; border-radius:50%; color:#123a63; background:#ffd43b; font-size:2.2rem; font-weight:950; box-shadow:0 0 0 9px rgba(255,212,59,.1); }
+.gildoni-hero-badge strong { margin-top:16px; color:#fff; font-size:1.08rem; }
+.gildoni-hero-badge small { margin-top:5px; color:#cbd9e7; }
+.gildoni-service-grid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:9px; margin:14px 0; }
+.gildoni-service-grid article { min-height:125px; padding:14px; border:1px solid #dce4ee; border-radius:12px; background:#fff; display:flex; flex-direction:column; gap:6px; box-shadow:0 6px 18px rgba(18,58,99,.035); }
+.gildoni-service-grid article > span { font-size:1.25rem; }
+.gildoni-service-grid article > strong { color:#123a63; }
+.gildoni-service-grid article > small { color:#647487; line-height:1.35; }
+.gildoni-home-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:12px; }
+.gildoni-home-panel { border:1px solid #dce4ee; border-radius:14px; background:#fff; padding:20px; }
+.gildoni-home-panel.highlight { background:linear-gradient(135deg,#fff8cf,#fff); border-color:#f1d665; }
+.gildoni-home-panel h2 { color:#123a63; margin:6px 0 12px; }
+.gildoni-home-panel p { color:#596a7a; line-height:1.55; }
+.gildoni-home-panel > button { background:#123a63; color:#fff; margin-top:14px; }
+.gildoni-journey { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:15px; }
+.gildoni-journey > div { min-height:92px; border:1px solid #e0e7ef; border-radius:10px; padding:11px; display:flex; flex-direction:column; gap:8px; }
+.gildoni-journey b { width:26px; height:26px; display:grid; place-items:center; border-radius:50%; background:#123a63; color:#ffd43b; }
+.gildoni-journey span { color:#495c6e; font-size:.78rem; font-weight:700; }
+.gildoni-differentiators { display:grid; gap:8px; margin-top:15px; }
+.gildoni-differentiators span { color:#123a63; font-weight:700; }
+
+.gildoni-diagnostic-layout,.gildoni-booking-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(340px,.85fr); gap:14px; align-items:stretch; }
+.gildoni-step-kicker { color:#647487; font-size:.7rem; font-weight:850; letter-spacing:.1em; text-transform:uppercase; margin-bottom:7px; }
+.gildoni-diagnostic-result,.gildoni-booking-summary { border:1px solid #dce4ee; border-radius:14px; background:#fff; padding:20px; }
+.gildoni-diagnostic-result { min-height:470px; display:flex; flex-direction:column; }
+.gildoni-diagnostic-result.ready { border-top:5px solid #ffd43b; }
+.gildoni-diagnostic-icon { width:52px; height:52px; display:grid; place-items:center; border-radius:50%; background:#eaf7ef; color:#20864b; font-size:1.35rem; font-weight:900; margin:16px 0 8px; }
+.gildoni-diagnostic-icon.muted { background:#eef3f8; color:#789; }
+.gildoni-diagnostic-result h2,.gildoni-booking-summary h2 { color:#123a63; margin:8px 0 10px; }
+.gildoni-diagnostic-result > p { color:#5b6b7b; line-height:1.55; }
+.gildoni-hypotheses { display:grid; gap:7px; margin:10px 0 16px; }
+.gildoni-hypotheses span { background:#f5f8fb; border:1px solid #e0e7ef; border-radius:8px; padding:9px 10px; color:#4b5d6e; font-size:.8rem; }
+.gildoni-estimate { margin-top:auto; display:grid; gap:3px; border-radius:12px; background:#123a63; color:#fff; padding:15px; }
+.gildoni-estimate small { color:#cbd9e7; }
+.gildoni-estimate strong { color:#ffd43b; font-size:1.7rem; }
+.gildoni-estimate span { color:#dce8f2; font-size:.75rem; }
+.gildoni-result-actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+
+.gildoni-option-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:14px; }
+.gildoni-option-grid button { min-height:135px; border:1px solid #dce4ee; border-radius:12px; background:#fff; color:#17212b; text-align:left; padding:14px; display:flex; flex-direction:column; gap:6px; cursor:pointer; }
+.gildoni-option-grid button.active { border-color:#ffd43b; background:#fffbea; box-shadow:inset 0 0 0 1px #ffd43b; }
+.gildoni-option-grid button > span { font-size:1.3rem; }
+.gildoni-option-grid button > strong { color:#123a63; }
+.gildoni-option-grid button > small { color:#647487; }
+.gildoni-booking-summary { display:flex; flex-direction:column; }
+.gildoni-booking-summary > div { display:flex; justify-content:space-between; gap:20px; padding:12px 0; border-top:1px solid #e4eaf0; }
+.gildoni-booking-summary > div span { color:#647487; }
+.gildoni-booking-summary > div strong { color:#123a63; text-align:right; }
+.gildoni-booking-summary > button { margin-top:auto; background:#123a63; color:#fff; }
+.gildoni-confirm-note { display:block; margin-top:8px; color:#45805b; }
+
+.gildoni-record.featured { border-left:5px solid #ffd43b; }
+.gildoni-mini-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+.gildoni-mini-tags b { border-radius:999px; padding:5px 8px; background:#eef3f8; color:#123a63; font-size:.68rem; }
+.gildoni-quote-lines { display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; color:#647487; font-size:.76rem; }
+.gildoni-quote-lines b { color:#123a63; }
+.gildoni-repair-timeline { display:grid; grid-template-columns:repeat(6,1fr); gap:5px; margin:15px 0 10px; }
+.gildoni-repair-timeline span { position:relative; text-align:center; border-radius:8px; padding:8px 4px; background:#eef3f8; color:#758494; font-size:.66rem; font-weight:700; }
+.gildoni-repair-timeline span.done { color:#123a63; background:#fff3ad; }
+.gildoni-repair-card.compact { padding-bottom:12px; }
+.gildoni-tracking-message { display:grid; gap:3px; margin-top:14px; padding:13px; border-radius:10px; background:#f5f8fb; }
+.gildoni-tracking-message strong { color:#123a63; }
+.gildoni-tracking-message span { color:#647487; }
+.gildoni-vehicle-grid article em { margin-top:8px; font-style:normal; color:#123a63; font-size:.73rem; font-weight:750; }
+
+.gildoni-metrics.admin { grid-template-columns:repeat(6,1fr); }
+.gildoni-metrics.admin > div { min-height:112px; }
+.gildoni-metrics.admin small { color:#718091; margin-top:5px; }
+.gildoni-management-grid { display:grid; grid-template-columns:1.1fr .9fr; gap:12px; margin-top:14px; }
+.gildoni-revenue-chart { height:155px; display:flex; align-items:flex-end; gap:8px; margin:18px 0 8px; border-bottom:1px solid #dce4ee; }
+.gildoni-revenue-chart i { flex:1; min-height:15px; background:linear-gradient(180deg,#ffd43b,#e4b900); border-radius:5px 5px 0 0; }
+.gildoni-chart-labels { display:flex; justify-content:space-between; color:#718091; font-size:.7rem; }
+.gildoni-category-row { display:grid; grid-template-columns:82px 1fr 42px; gap:8px; align-items:center; margin-top:15px; color:#536577; font-size:.76rem; }
+.gildoni-category-row > div { height:8px; background:#edf1f5; border-radius:999px; overflow:hidden; }
+.gildoni-category-row i { display:block; height:100%; border-radius:999px; background:#123a63; }
+.gildoni-category-row strong { color:#123a63; text-align:right; }
+.gildoni-management-links { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:12px 0; }
+.gildoni-management-links button { border:1px solid #dce4ee; border-radius:10px; background:#fff; color:#123a63; padding:12px; display:flex; justify-content:space-between; gap:8px; font-weight:750; cursor:pointer; }
+.gildoni-management-links button strong { color:#c62828; }
+.gildoni-payment-panel { margin-top:0; }
+
+@media (max-width:1050px) {
+  .gildoni-service-grid { grid-template-columns:repeat(3,1fr); }
+  .gildoni-metrics.admin { grid-template-columns:repeat(3,1fr); }
+  .gildoni-management-links { grid-template-columns:repeat(3,1fr); }
+}
+@media (max-width:820px) {
+  .gildoni-public-hero.product,.gildoni-home-grid,.gildoni-diagnostic-layout,.gildoni-booking-layout,.gildoni-management-grid { grid-template-columns:1fr; }
+  .gildoni-hero-badge { min-height:150px; }
+  .gildoni-journey { grid-template-columns:repeat(2,1fr); }
+}
+@media (max-width:680px) {
+  .showroom-theme-garage .showroom-sidebar nav { grid-template-columns:repeat(3,1fr); }
+  .gildoni-service-grid,.gildoni-metrics.admin,.gildoni-management-links,.gildoni-option-grid { grid-template-columns:1fr 1fr; }
+  .gildoni-repair-timeline { grid-template-columns:repeat(3,1fr); }
+  .gildoni-public-hero.product { padding:1.4rem; }
+}
+@media (max-width:480px) {
+  .gildoni-service-grid,.gildoni-metrics.admin,.gildoni-management-links,.gildoni-option-grid,.gildoni-journey { grid-template-columns:1fr; }
+  .gildoni-result-actions { flex-direction:column; }
+  .gildoni-result-actions button { width:100%; }
+}
