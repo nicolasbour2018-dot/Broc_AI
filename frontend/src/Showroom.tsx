@@ -23,6 +23,7 @@ const DEMOS: Record<DemoKey, DemoMeta> = {
     icon: '↗',
     features: [
       { id: 'dashboard', label: 'Cockpit' },
+      { id: 'jobs', label: 'Offres' },
       { id: 'applications', label: 'Candidatures' },
       { id: 'statistics', label: 'Statistiques' },
       { id: 'chat', label: 'Assistant Rocky' }
@@ -124,7 +125,38 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
   const [cockpitView, setCockpitView] = useState<'suggestions' | 'new' | 'enrichment' | 'mine' | 'flow'>('suggestions')
   const [watchRun, setWatchRun] = useState(false)
   const [selectedApplication, setSelectedApplication] = useState(0)
+  const [selectedJob, setSelectedJob] = useState(0)
+  const [jobView, setJobView] = useState<'list' | 'detail'>('list')
+  const [detailTab, setDetailTab] = useState<'overview' | 'matching' | 'application'>('overview')
+  const [applicationPrepared, setApplicationPrepared] = useState(false)
+  const [savedJob, setSavedJob] = useState(false)
   const chatStarted = useRef(false)
+
+  const jobs = ROCKY_MATCHES.map((item, index) => ({
+    ...item,
+    id: [42, 38, 31][index],
+    city: ['Paris', 'Chartres', 'Rambouillet'][index],
+    remote: ['Hybride · 3 j télétravail', 'Remote France', 'Hybride · 2 j télétravail'][index],
+    contract: ['CDI', 'CDI', 'CDD 12 mois'][index],
+    salary: ['38–44 k€', '36–42 k€', '34–39 k€'][index],
+    source: ['Apec', 'Adzuna', 'LinkedIn'][index],
+    status: ['NOUVELLE', 'NOUVELLE', 'À ENRICHIR'][index],
+    summary: [
+      'Construire des analyses utiles aux équipes opérationnelles et transformer des données hétérogènes en indicateurs simples.',
+      'Automatiser les flux de données, fiabiliser les imports et développer de petits outils internes en Python.',
+      'Prototyper des automatisations et assistants IA pour fluidifier les opérations quotidiennes.'
+    ][index],
+    strengths: [
+      ['Python / SQL très alignés', 'Expérience dashboard et EDA', 'Secteur impact cohérent'],
+      ['Python et automatisation', 'APIs et orchestration', 'Culture produit transverse'],
+      ['Agents et automatisation', 'Prototypage rapide', 'Expérience métier variée']
+    ][index],
+    gaps: [
+      'Power BI demandé : niveau à préciser',
+      'Airflow cité dans l’annonce : expérience limitée',
+      'Expérience SaaS B2B souhaitée : à contextualiser'
+    ][index]
+  }))
 
   const applications = [
     { id: 18, company: 'Terranova', role: 'Data Analyst · Impact', status: 'PRÉPARÉE', score: 92, date: '18/09/2026' },
@@ -146,6 +178,128 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
     void trackEvent('message_count', { demo: 'rocky', count: next.length - 1 })
   }
 
+  function openJob(index: number, tab: 'overview' | 'matching' | 'application' = 'overview') {
+    setSelectedJob(index)
+    setDetailTab(tab)
+    setJobView('detail')
+    setApplicationPrepared(false)
+    setSavedJob(false)
+    onFeature('jobs', tab === 'matching' ? 'open_matching' : 'open_job_detail')
+  }
+
+  if (feature === 'jobs') {
+    const job = jobs[selectedJob]
+
+    if (jobView === 'detail') return (
+      <section className="rocky-showcase rocky-job-detail-page">
+        <button type="button" className="rocky-back-link" onClick={() => { setJobView('list'); onFeature('jobs', 'back_to_flow') }}>← Retour au flux</button>
+        <div className="rocky-detail-head">
+          <div>
+            <span className="rocky-small-label">Annonce #{job.id} · {job.source}</span>
+            <h1 className="rocky-page-title">{job.role}</h1>
+            <p className="rocky-page-caption">{job.company} · {job.city}</p>
+          </div>
+          <div className="rocky-detail-score"><span>Matching</span><strong>{job.score} %</strong><small>{job.score >= 90 ? 'Très forte adéquation' : 'Bonne adéquation'}</small></div>
+        </div>
+
+        <div className="rocky-detail-meta">
+          <div><span>Contrat</span><strong>{job.contract}</strong></div>
+          <div><span>Télétravail</span><strong>{job.remote}</strong></div>
+          <div><span>Salaire</span><strong>{job.salary}</strong></div>
+          <div><span>Statut</span><strong>{job.status}</strong></div>
+        </div>
+
+        <div className="rocky-detail-tabs">
+          {([['overview', 'Aperçu'], ['matching', 'Matching'], ['application', 'Candidature']] as const).map(([id, label]) => (
+            <button key={id} type="button" className={detailTab === id ? 'active' : ''} onClick={() => { setDetailTab(id); onFeature('jobs', `detail_${id}`) }}>{label}</button>
+          ))}
+        </div>
+
+        {detailTab === 'overview' && <div className="rocky-detail-grid">
+          <article className="rocky-card-panel rocky-detail-copy">
+            <span className="rocky-small-label">Mission</span>
+            <h3>{job.company} cherche un profil capable de rendre la donnée directement actionnable.</h3>
+            <p>{job.summary}</p>
+            <div className="rocky-skill-row"><span>Python</span><span>SQL</span><span>Data viz</span><span>Automatisation</span></div>
+          </article>
+          <aside className="rocky-card-panel rocky-source-card">
+            <span className="rocky-small-label">Provenance</span>
+            <h3>{job.source}</h3>
+            <p>Annonce importée dans le scénario de démonstration.</p>
+            <div className="rocky-status-line"><span>Fraîcheur</span><strong>{selectedJob === 0 ? '2 jours' : '3 jours'}</strong></div>
+            <div className="rocky-status-line"><span>Qualité des données</span><strong>Complète</strong></div>
+            <button type="button" className="rocky-secondary-button" onClick={() => { setSavedJob(value => !value); onFeature('jobs', 'toggle_saved') }}>{savedJob ? '✓ Ajoutée à mes annonces' : '+ Ajouter à mes annonces'}</button>
+          </aside>
+        </div>}
+
+        {detailTab === 'matching' && <div className="rocky-detail-grid rocky-matching-grid">
+          <article className="rocky-card-panel rocky-score-panel">
+            <span className="rocky-small-label">Score Rocky</span>
+            <div className="rocky-score-ring" style={{ background: `conic-gradient(#08b5d1 ${job.score * 3.6}deg, #e7f0f1 0)` }}><strong>{job.score}%</strong></div>
+            <p>Le score combine les compétences, le type de mission et les préférences du profil actif.</p>
+          </article>
+          <article className="rocky-card-panel">
+            <span className="rocky-small-label">Pourquoi ça matche</span>
+            <div className="rocky-reason-list">{job.strengths.map(reason => <div key={reason}><b>✓</b><span>{reason}</span></div>)}</div>
+            <div className="rocky-gap"><b>À clarifier</b><span>{job.gaps}</span></div>
+            <button type="button" className="rocky-primary-button" onClick={() => { setDetailTab('application'); onFeature('jobs', 'prepare_from_matching') }}>Préparer cette candidature</button>
+          </article>
+        </div>}
+
+        {detailTab === 'application' && <div className="rocky-detail-grid">
+          <article className="rocky-card-panel rocky-application-prep">
+            <span className="rocky-small-label">Dossier candidat</span>
+            <h3>Adapter sans réécrire tout le CV.</h3>
+            <div className="rocky-checkline"><span>CV principal</span><strong>Prêt</strong></div>
+            <div className="rocky-checkline"><span>Accroche ciblée</span><strong>{applicationPrepared ? 'Générée' : 'À préparer'}</strong></div>
+            <div className="rocky-checkline"><span>Arguments de matching</span><strong>3 sélectionnés</strong></div>
+            <button type="button" className="rocky-primary-button" onClick={() => { setApplicationPrepared(true); onFeature('jobs', 'prepare_application_demo') }}>{applicationPrepared ? '✓ Dossier prêt pour la démo' : 'Préparer le dossier'}</button>
+          </article>
+          <aside className="rocky-card-panel rocky-action-card">
+            <span className="rocky-small-label">Contrôle utilisateur</span>
+            <h3>Rien ne part automatiquement.</h3>
+            <p>Rocky prépare, explique et propose. L’envoi reste une action explicite de l’utilisateur.</p>
+            <button type="button" className="rocky-secondary-button" onClick={() => onFeature('applications', 'open_application_tracking')}>Voir le suivi des candidatures</button>
+          </aside>
+        </div>}
+      </section>
+    )
+
+    return (
+      <section className="rocky-showcase">
+        <div className="rocky-kicker-demo">Base d’annonces</div>
+        <h1 className="rocky-page-title">Tout le flux</h1>
+        <p className="rocky-page-caption">Toutes les annonces du scénario, avec statut, source et score de matching.</p>
+
+        <div className="rocky-flow-summary">
+          <div><span>Annonces en base</span><strong>12</strong></div>
+          <div><span>À enrichir</span><strong>2</strong></div>
+          <div><span>Sources</span><strong>6</strong></div>
+          <div><span>Score moyen</span><strong>81 %</strong></div>
+        </div>
+
+        <div className="rocky-flow-toolbar">
+          <div><span className="rocky-small-label">Recherche</span><input defaultValue="Data" aria-label="Recherche fictive" /></div>
+          <div><span className="rocky-small-label">Statut</span><button type="button">Toutes · 12</button></div>
+          <div><span className="rocky-small-label">Tri</span><button type="button">Meilleur score ↓</button></div>
+        </div>
+
+        <div className="rocky-flow-list">
+          {jobs.map((item, index) => (
+            <article key={item.id} className="rocky-flow-row">
+              <div className="rocky-flow-company"><span>{item.company.slice(0, 1)}</span><div><strong>{item.company}</strong><small>{item.source} · #{item.id}</small></div></div>
+              <div className="rocky-flow-role"><strong>{item.role}</strong><small>{item.city} · {item.remote}</small></div>
+              <span className={`rocky-status-pill ${index === 2 ? 'needs-data' : ''}`}>{item.status}</span>
+              <strong className="rocky-flow-score">{item.score}%</strong>
+              <button type="button" className="rocky-secondary-button" onClick={() => openJob(index)}>Ouvrir</button>
+            </article>
+          ))}
+        </div>
+        <div className="rocky-demo-note">Démo showroom : 3 annonces sont affichées, mais les compteurs simulent un flux complet de 12 offres.</div>
+      </section>
+    )
+  }
+
   if (feature === 'applications') return (
     <section className="rocky-showcase">
       <div className="rocky-kicker-demo">Suivi & candidatures</div>
@@ -161,7 +315,17 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
         <div><span>Taux de réponse</span><strong>50 %</strong></div>
       </div>
 
-      <div className="rocky-section-head"><div><span>Dossiers récents</span><strong>3 candidatures</strong></div><small>utilise les cartes pour parcourir la démo</small></div>
+      <div className="rocky-pipeline">
+        <div><span>À préparer</span><strong>1</strong></div>
+        <i />
+        <div><span>Envoyées</span><strong>2</strong></div>
+        <i />
+        <div><span>Réponses</span><strong>1</strong></div>
+        <i />
+        <div><span>Entretiens</span><strong>1</strong></div>
+      </div>
+
+      <div className="rocky-section-head"><div><span>Dossiers récents</span><strong>3 candidatures</strong></div><small>sélectionne une carte pour ouvrir son suivi</small></div>
       <div className="rocky-application-grid">
         {applications.map((application, index) => (
           <button
@@ -185,14 +349,15 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
           <h3>{applications[selectedApplication].company} · {applications[selectedApplication].role}</h3>
           <div className="rocky-status-line"><span>Statut</span><strong>{applications[selectedApplication].status}</strong></div>
           <div className="rocky-status-line"><span>Matching</span><strong>{applications[selectedApplication].score} %</strong></div>
+          <div className="rocky-status-line"><span>Dernière action</span><strong>{selectedApplication === 1 ? 'Envoyée il y a 6 j' : 'Aujourd’hui'}</strong></div>
           <button type="button" className="rocky-primary-button" onClick={() => onFeature('applications', 'prepare_application')}>Préparer / revoir le dossier</button>
         </div>
         <div className="rocky-card-panel rocky-mail-card">
-          <span className="rocky-small-label">File Gmail simulée</span>
+          <span className="rocky-small-label">Réponses recruteurs · simulation</span>
           <h3>1 réponse à vérifier</h3>
           <p><strong>Novadata</strong> · “Suite à votre candidature”</p>
           <p>Classification fictive : <b>ENTRETIEN</b> · confiance 94 %</p>
-          <button type="button" onClick={() => onFeature('applications', 'review_email')}>Voir l’e-mail simulé</button>
+          <button type="button" onClick={() => onFeature('applications', 'review_email')}>Ouvrir la réponse simulée</button>
         </div>
       </div>
     </section>
@@ -231,6 +396,10 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
           <div className="rocky-chart-axis"><span>60 %</span><span>70 %</span><span>80 %</span><span>90 %+</span></div>
         </div>
       </div>
+      <div className="rocky-two-columns">
+        <div className="rocky-card-panel"><span className="rocky-small-label">Sources</span><h3>D’où viennent les opportunités ?</h3><div className="rocky-source-bars"><div><span>Apec</span><i style={{ width: '82%' }} /><strong>5</strong></div><div><span>Adzuna</span><i style={{ width: '58%' }} /><strong>3</strong></div><div><span>LinkedIn</span><i style={{ width: '42%' }} /><strong>2</strong></div><div><span>Autres</span><i style={{ width: '28%' }} /><strong>2</strong></div></div></div>
+        <div className="rocky-card-panel"><span className="rocky-small-label">Lecture rapide</span><h3>La qualité passe avant le volume.</h3><p className="rocky-insight-copy">Les candidatures les mieux scorées concentrent les retours. Rocky aide surtout à prioriser les bonnes annonces et à garder le suivi à jour.</p></div>
+      </div>
     </section>
   )
 
@@ -238,18 +407,12 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
     <section className="rocky-showcase rocky-assistant-page">
       <div className="rocky-kicker-demo">Copilote personnel</div>
       <h1 className="rocky-page-title">Assistant Rocky</h1>
-      <p className="rocky-page-caption">Rocky lit les données du scénario ; toute modification reste visible et confirmable.</p>
-      <div className="rocky-hero-demo"><strong>On regarde les vraies annonces, ensemble.</strong><span>Demande un comparatif, une piste de candidature ou un point rapide sur ton suivi.</span></div>
+      <p className="rocky-page-caption">Rocky lit uniquement le jeu de données de la démo et propose des actions explicables.</p>
+      <div className="rocky-hero-demo"><strong>Un copilote, pas un pilote automatique.</strong><span>Demande un comparatif, une priorité de candidature ou un point rapide sur ton suivi.</span></div>
 
       <div className="rocky-mascot-stage">
-        <img
-          src="/rocky_mascot.png"
-          alt="Mascotte Rocky"
-          onError={event => {
-            event.currentTarget.onerror = null
-            event.currentTarget.src = 'https://raw.githubusercontent.com/nicolasbour2018-dot/Rocky_assistant_job/main/assets/rocky_mascot.png'
-          }}
-        />
+        <div className="rocky-mascot-orbit" aria-hidden="true"><i /><span>R</span></div>
+        <div><strong>Rocky</strong><small>assistant emploi · mode démo</small></div>
       </div>
 
       <div className="rocky-example-row"><span>« Fais-moi un bilan »</span><span>« Quelle offre prioriser ? »</span><span>« Quelle relance aujourd’hui ? »</span></div>
@@ -269,44 +432,57 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
     { id: 'flow' as const, label: 'Tout le flux', count: 12 }
   ]
 
+  const visibleJobs = cockpitView === 'suggestions' ? jobs : cockpitView === 'enrichment' ? jobs.slice(2) : jobs
+  const resultCount = cockpitView === 'suggestions' ? 3 : cockpitView === 'new' ? 8 : cockpitView === 'enrichment' ? 2 : cockpitView === 'mine' ? 5 : 12
+
   return (
     <section className="rocky-showcase">
       <div className="rocky-kicker-demo">Recherche & décisions</div>
-      <h1 className="rocky-page-title">Rocky Assistant Recherche d'emploi · V2</h1>
+      <h1 className="rocky-page-title">Rocky Assistant Recherche d’emploi</h1>
       <p className="rocky-page-caption">Cockpit personnel · veille, matching et prochaines actions</p>
-      <div className="rocky-hero-demo"><strong>Ton terrain de jeu pour la prochaine bonne opportunité.</strong><span>Explore les suggestions, ajuste ton profil et laisse Rocky te guider vers les annonces qui comptent.</span></div>
-      <p className="rocky-profile-caption">Profil actif : <strong>Data / IA · Junior</strong></p>
+
+      <div className="rocky-hero-demo"><strong>Ton terrain de jeu pour la prochaine bonne opportunité.</strong><span>Explore les suggestions, comprends le matching, prépare tes dossiers et garde la main sur chaque action.</span></div>
+
+      <div className="rocky-command-grid">
+        <div className="rocky-profile-card"><span className="rocky-small-label">Profil actif</span><strong>Data / IA · Junior</strong><small>Python · SQL · BI · automatisation · impact</small><button type="button" onClick={() => onFeature('dashboard', 'profile_demo')}>Profil prêt · 87 %</button></div>
+        <div className="rocky-source-strip"><div><span>Sources actives</span><strong>6 / 7</strong></div><div className="rocky-source-dots"><i /><i /><i /><i /><i /><i /><i className="muted" /></div><small>Apec · Adzuna · LinkedIn · Indeed · Wellfound · autres</small></div>
+        <div className="rocky-cockpit-kpis"><div><span>Suggestions</span><strong>3</strong></div><div><span>Nouvelles</span><strong>8</strong></div><div><span>À enrichir</span><strong>2</strong></div></div>
+      </div>
 
       <div className="rocky-watch-card">
-        <span className="rocky-small-label">Veille manuelle</span>
+        <div className="rocky-watch-title"><div><span className="rocky-small-label">Veille manuelle</span><strong>Relancer la recherche maintenant</strong></div><span>Dernière veille · 02:42</span></div>
         <label>Postes recherchés pour cette veille</label>
         <div className="rocky-watch-row"><input defaultValue="Data Analyst, Data Ops, Automation" /><button type="button" onClick={() => { setWatchRun(true); onFeature('dashboard', 'run_watch') }}>Lancer la veille</button><button type="button" className="rocky-threshold">Seuil · 75 %</button></div>
-        <small>Requêtes utilisées : Data Analyst · Data Ops · Automation</small>
+        <small>La démo simule l’import et le matching : aucun site d’emploi n’est appelé.</small>
       </div>
-      {watchRun && <div className="rocky-success">Veille terminée — 8 nouvelles annonces ajoutées, dont 3 recommandations à 80 % ou plus.</div>}
+      {watchRun && <div className="rocky-success"><strong>✓ Veille terminée</strong><span>8 nouvelles annonces ajoutées · 3 recommandations à 80 % ou plus · données figées pour le showroom.</span></div>}
 
       <div className="rocky-view-tabs">
-        {views.map(view => <button key={view.id} type="button" className={cockpitView === view.id ? 'active' : ''} onClick={() => { setCockpitView(view.id); onFeature('dashboard', `view_${view.id}`) }}>{view.label} · {view.count}</button>)}
+        {views.map(view => <button key={view.id} type="button" className={cockpitView === view.id ? 'active' : ''} onClick={() => { setCockpitView(view.id); onFeature('dashboard', `view_${view.id}`) }}>{view.label}<span>{view.count}</span></button>)}
       </div>
 
       <div className="rocky-next-action">
-        <div><span className="rocky-small-label">Prochaine action</span><strong>📬 1 réponse à vérifier</strong><small>Valide les retours Gmail pour garder tes candidatures à jour.</small></div>
-        <button type="button" onClick={() => onFeature('applications', 'open_pending_email')}>Ouvrir</button>
+        <div><span className="rocky-small-label">Prochaine action</span><strong>1 réponse recruteur à vérifier</strong><small>Novadata attend une confirmation pour un premier échange.</small></div>
+        <button type="button" onClick={() => onFeature('applications', 'open_pending_email')}>Ouvrir le suivi →</button>
       </div>
 
-      <h2 className="rocky-results-title">{views.find(view => view.id === cockpitView)?.label} · {cockpitView === 'suggestions' ? 3 : cockpitView === 'new' ? 8 : cockpitView === 'enrichment' ? 2 : cockpitView === 'mine' ? 5 : 12} résultat(s)</h2>
+      <div className="rocky-section-head rocky-results-head"><div><span>Vue active</span><strong>{views.find(view => view.id === cockpitView)?.label}</strong></div><small>{resultCount} résultat(s) dans le scénario</small></div>
       <div className="rocky-jobs-grid">
-        {ROCKY_MATCHES.map((item, index) => (
-          <article key={item.role} className="rocky-job-card">
-            <div className="rocky-job-head"><h3>{item.role}</h3><div><small>Score</small><strong>{item.score} %</strong></div></div>
-            <strong>{item.company}</strong>
-            <p>Paris / hybride · Salaire non précisé</p>
-            <small>`NOUVELLE` · source démo · {index === 0 ? '18/09/2026' : '17/09/2026'}</small>
-            <button type="button" className="rocky-primary-button" onClick={() => onFeature('dashboard', 'open_job_detail')}>Ouvrir la fiche complète</button>
-            <button type="button" className="rocky-secondary-button" onClick={() => onFeature('dashboard', 'open_matching')}>Analyse du matching</button>
-          </article>
-        ))}
+        {visibleJobs.map(item => {
+          const index = jobs.findIndex(job => job.id === item.id)
+          return (
+            <article key={item.role} className="rocky-job-card">
+              <div className="rocky-job-head"><div><span className="rocky-status-pill">{item.status}</span><h3>{item.role}</h3></div><div><small>Score</small><strong>{item.score} %</strong></div></div>
+              <strong>{item.company}</strong>
+              <p>{item.city} · {item.remote}</p>
+              <div className="rocky-job-meta"><span>{item.contract}</span><span>{item.salary}</span><span>{item.source}</span></div>
+              <p className="rocky-job-summary">{item.summary}</p>
+              <div className="rocky-job-actions"><button type="button" className="rocky-primary-button" onClick={() => openJob(index)}>Fiche complète</button><button type="button" className="rocky-secondary-button" onClick={() => openJob(index, 'matching')}>Pourquoi {item.score} % ?</button></div>
+            </article>
+          )
+        })}
       </div>
+      <button type="button" className="rocky-open-flow" onClick={() => { setJobView('list'); onFeature('jobs', 'open_full_flow') }}>Voir tout le flux simulé →</button>
     </section>
   )
 }
