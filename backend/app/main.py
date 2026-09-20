@@ -436,7 +436,7 @@ def create_listing(
 def list_listings(
     q: str | None = Query(default=None, max_length=100),
     category: ListingCategory | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=100),
+    limit: int | None = Query(default=None, ge=1, le=100),
     x_session_id: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> list[ListingOut]:
@@ -453,7 +453,9 @@ def list_listings(
                 Listing.category.ilike(pattern),
             )
         )
-    statement = statement.order_by(Listing.created_at.desc()).limit(limit)
+    statement = statement.order_by(Listing.created_at.desc())
+    if limit is not None:
+        statement = statement.limit(limit)
     rows = list(db.scalars(statement).all())
     if cleaned or category is not None:
         emit_event(db, session_id(x_session_id), "search_performed", {"query_length": len(cleaned), "category": category.value if category else None, "results": len(rows)})
