@@ -30,16 +30,20 @@ const DEMOS: Record<DemoKey, DemoMeta> = {
     ]
   },
   basket: {
-    name: 'Basket Lab',
-    eyebrow: 'Data sport',
-    description: 'Lecture rapide d’une équipe, profils joueurs, tendances et comparaison pour aider le staff à décider.',
-    promise: 'Des données de match lisibles en quelques secondes.',
-    icon: '◉',
+    name: 'HGSE Basket',
+    eyebrow: 'Pilotage de club',
+    description: 'Gestion sportive, association, communication, statistiques et assistant IA réunis dans un cockpit club.',
+    promise: 'Plus qu’un club, une famille — et un pilotage enfin centralisé.',
+    icon: '🏀',
     features: [
-      { id: 'dashboard', label: 'Équipe' },
-      { id: 'players', label: 'Joueurs' },
+      { id: 'dashboard', label: 'Accueil' },
+      { id: 'planning', label: 'Planning' },
+      { id: 'messages', label: 'Messagerie' },
+      { id: 'teams', label: 'Équipes' },
       { id: 'match', label: 'Match' },
-      { id: 'compare', label: 'Comparer' }
+      { id: 'statistics', label: 'Statistiques' },
+      { id: 'club', label: 'Club / Association' },
+      { id: 'assistant', label: 'Assistant IA' }
     ]
   },
   garage: {
@@ -489,35 +493,156 @@ function RockyView({ feature, onFeature }: { feature: string; onFeature: (featur
 
 
 function BasketView({ feature, onFeature }: { feature: string; onFeature: (feature: string, action?: string) => void }) {
-  const [selected, setSelected] = useState(0)
+  const [planningFilter, setPlanningFilter] = useState<'Tous' | 'Entraînements' | 'Matchs'>('Tous')
+  const [selectedTeam, setSelectedTeam] = useState(1)
+  const [selectedConversation, setSelectedConversation] = useState(0)
+  const [matchTab, setMatchTab] = useState<'summary' | 'stats' | 'sheet'>('summary')
+  const [clubTaskDone, setClubTaskDone] = useState(false)
+  const [assistantInput, setAssistantInput] = useState('')
+  const [assistantMessages, setAssistantMessages] = useState<ChatMessage[]>([
+    { role: 'assistant', text: 'Bonjour ! Je peux organiser un planning, préparer un message, retrouver une information ou analyser les données fictives du club.' }
+  ])
 
-  if (feature === 'players') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Roster fictif</span><h2>Profils joueurs</h2></div><strong>4 profils suivis</strong></div>
-      <div className="showroom-player-layout"><div className="showroom-list compact">{PLAYERS.map((player, index) => <button key={player.name} type="button" className={`showroom-player ${selected === index ? 'active' : ''}`} onClick={() => { setSelected(index); onFeature('players', 'select_player') }}><span>{player.role}</span><strong>{player.name}</strong><small>{player.pts} pts · EFF {player.eff}</small></button>)}</div><div className="showroom-player-focus"><span>{PLAYERS[selected].role}</span><h3>{PLAYERS[selected].name}</h3><strong className="showroom-big-number">{PLAYERS[selected].eff}</strong><small>efficacité moyenne</small><div className="showroom-meter"><i style={{ width: `${Math.min(100, PLAYERS[selected].eff * 4)}%` }} /></div><p>Tendance sur 5 matchs : <strong>{PLAYERS[selected].trend}</strong></p></div></div>
+  const teams = [
+    { name: 'U13 Garçons', coach: 'Julien Morel', players: 14, wins: 8, losses: 3, diff: '+74' },
+    { name: 'U15 Féminines', coach: 'Sophie Martin', players: 18, wins: 12, losses: 6, diff: '+48' },
+    { name: 'Seniors Masculins', coach: 'Karim Diallo', players: 16, wins: 9, losses: 4, diff: '+61' }
+  ]
+
+  const schedule = [
+    { day: '19 SEP.', time: '17h00 – 18h30', title: 'U13 Garçons', place: 'Gymnase Épernon', type: 'Entraînements' as const },
+    { day: '19 SEP.', time: '18h30 – 20h00', title: 'U15 Filles', place: 'Gymnase Épernon', type: 'Entraînements' as const },
+    { day: '20 SEP.', time: '10h00', title: 'U13 Garçons vs Chartres', place: 'Gymnase Épernon', type: 'Matchs' as const },
+    { day: '20 SEP.', time: '14h30', title: 'U15 Filles vs Rambouillet', place: 'Gymnase Épernon', type: 'Matchs' as const },
+    { day: '21 SEP.', time: '16h00', title: 'Seniors M vs Dreux', place: 'Gymnase Épernon', type: 'Matchs' as const }
+  ]
+
+  const conversations = [
+    { name: 'Staff entraîneurs', preview: 'Réunion lundi 20h', time: '14:32', unread: 2 },
+    { name: 'U13 Garçons', preview: 'Prochain entraînement', time: '11:04', unread: 1 },
+    { name: 'Parents U11', preview: 'Organisation plateau', time: 'Hier', unread: 0 },
+    { name: 'Bureau HGSE', preview: 'Point licences', time: 'Hier', unread: 0 },
+    { name: 'Bénévoles', preview: 'Table de marque', time: '17 sept.', unread: 0 }
+  ]
+
+  function assistantReply(input: string): string {
+    const value = input.toLowerCase()
+    if (value.includes('planning') || value.includes('créneau')) return 'Planning fictif vérifié : aucun conflit samedi matin. Je suggère de conserver le créneau U13 à 10h et de réserver 30 minutes de battement avant le match U15 F.'
+    if (value.includes('message') || value.includes('parent')) return 'Proposition : « Bonjour à tous, rappel : rendez-vous samedi à 13h45 au gymnase pour U15 F. Merci de confirmer votre présence avant vendredi soir. »'
+    if (value.includes('stat') || value.includes('analyse')) return 'Signal principal : les U15 F progressent de 18 % sur l’écart de points depuis janvier, avec une défense plus régulière sur les trois derniers matchs.'
+    if (value.includes('document') || value.includes('licence')) return 'Dans ce scénario, le dossier Licences 2026 contient 4 pièces et 7 inscriptions restent à compléter avant la clôture.'
+    return 'Je peux agir sur le scénario de démonstration : planning, messages, équipes, matchs, statistiques et documents du club. Essaie « analyse les stats U15 ».'
+  }
+
+  function sendAssistant(event: FormEvent) {
+    event.preventDefault()
+    const cleaned = assistantInput.trim()
+    if (!cleaned) return
+    const next = [...assistantMessages, { role: 'visitor' as const, text: cleaned }, { role: 'assistant' as const, text: assistantReply(cleaned) }]
+    setAssistantMessages(next)
+    setAssistantInput('')
+    void trackEvent('message_count', { demo: 'basket', count: next.length - 1 })
+  }
+
+  const SectionHead = ({ eyebrow, title, note }: { eyebrow: string; title: string; note?: string }) => (
+    <div className="hgse-page-head"><div><span>{eyebrow}</span><h1>{title}</h1>{note && <p>{note}</p>}</div><div className="hgse-mark">🏀</div></div>
+  )
+
+  if (feature === 'planning') return (
+    <section className="hgse-showcase">
+      <SectionHead eyebrow="Organisation sportive" title="Planning" note="Entraînements, matchs, créneaux gymnase et événements du club." />
+      <div className="hgse-toolbar"><div className="hgse-month"><button type="button">‹</button><strong>Septembre 2026</strong><button type="button">›</button></div><div className="hgse-filter-row">{(['Tous', 'Entraînements', 'Matchs'] as const).map(filter => <button key={filter} type="button" className={planningFilter === filter ? 'active' : ''} onClick={() => { setPlanningFilter(filter); onFeature('planning', `filter_${filter}`) }}>{filter}</button>)}</div></div>
+      <div className="hgse-planning-grid">
+        <div className="hgse-calendar-card">
+          <div className="hgse-weekdays">{['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((day, index) => <span key={`${day}-${index}`}>{day}</span>)}</div>
+          <div className="hgse-days">{Array.from({ length: 28 }, (_, index) => index + 1).map(day => <button key={day} type="button" className={day === 19 ? 'selected' : day === 20 || day === 21 ? 'event' : ''}>{day}</button>)}</div>
+        </div>
+        <div className="hgse-schedule-list">
+          {schedule.filter(item => planningFilter === 'Tous' || item.type === planningFilter).map(item => <article key={`${item.day}-${item.title}`}><div className={`hgse-event-dot ${item.type === 'Matchs' ? 'match' : ''}`} /><div><small>{item.day} · {item.time}</small><strong>{item.title}</strong><span>{item.place}</span></div><b>{item.type === 'Matchs' ? 'Match' : 'Entraînement'}</b></article>)}
+        </div>
+      </div>
+    </section>
+  )
+
+  if (feature === 'messages') return (
+    <section className="hgse-showcase">
+      <SectionHead eyebrow="Communication interne" title="Messagerie" note="Équipes, parents, staff, bénévoles et bureau dans un même espace." />
+      <div className="hgse-message-layout">
+        <div className="hgse-conversation-list">
+          <div className="hgse-mini-tabs"><button className="active" type="button">Tous</button><button type="button">Équipes</button><button type="button">Staff</button><button type="button">Association</button></div>
+          {conversations.map((conversation, index) => <button key={conversation.name} type="button" className={selectedConversation === index ? 'active' : ''} onClick={() => { setSelectedConversation(index); onFeature('messages', 'open_conversation') }}><div className="hgse-avatar">{conversation.name.slice(0, 2).toUpperCase()}</div><div><strong>{conversation.name}</strong><span>{conversation.preview}</span></div><small>{conversation.time}{conversation.unread > 0 && <b>{conversation.unread}</b>}</small></button>)}
+        </div>
+        <div className="hgse-thread">
+          <div className="hgse-thread-head"><div><strong>{conversations[selectedConversation].name}</strong><span>Groupe interne · scénario de démo</span></div><button type="button" onClick={() => onFeature('assistant', 'draft_message')}>✨ Rédiger avec l’IA</button></div>
+          <div className="hgse-thread-body"><div className="incoming"><span>Sophie · 14:20</span><p>Pour lundi, on garde 20h pour le point des entraîneurs ?</p></div><div className="outgoing"><span>Vous · 14:27</span><p>Oui, et je mets le bilan des matchs du week-end à l’ordre du jour.</p></div><div className="incoming"><span>Julien · 14:32</span><p>Parfait. J’ajoute le point sur les créneaux vacances.</p></div></div>
+          <div className="hgse-compose"><input placeholder="Écrivez un message…" /><button type="button" onClick={() => onFeature('messages', 'send_mock_message')}>Envoyer</button></div>
+        </div>
+      </div>
+    </section>
+  )
+
+  if (feature === 'teams') return (
+    <section className="hgse-showcase">
+      <SectionHead eyebrow="Gestion sportive" title="Équipes" note="Effectifs, staff, résultats et progression par catégorie." />
+      <div className="hgse-team-selector">{teams.map((team, index) => <button key={team.name} type="button" className={selectedTeam === index ? 'active' : ''} onClick={() => { setSelectedTeam(index); onFeature('teams', 'select_team') }}><span>{team.name}</span><small>{team.players} licenciés</small></button>)}</div>
+      <div className="hgse-team-hero"><div><span>Saison 2026–2027</span><h2>{teams[selectedTeam].name}</h2><p>Coach · <strong>{teams[selectedTeam].coach}</strong></p></div><div className="hgse-team-record"><div><strong>{teams[selectedTeam].wins}</strong><span>Victoires</span></div><div><strong>{teams[selectedTeam].losses}</strong><span>Défaites</span></div><div><strong>{teams[selectedTeam].diff}</strong><span>Diff. pts</span></div></div></div>
+      <div className="hgse-team-detail-grid">
+        <article className="hgse-panel"><span className="hgse-label">Évolution des performances</span><div className="hgse-line-chart"><svg viewBox="0 0 500 150" preserveAspectRatio="none"><polyline points="10,115 90,98 170,78 250,72 330,54 410,42 490,22" /><polyline className="opponent" points="10,122 90,116 170,103 250,96 330,83 410,80 490,72" /></svg></div><div className="hgse-legend"><span><i />Points marqués</span><span><i className="orange" />Points encaissés</span></div></article>
+        <article className="hgse-panel"><span className="hgse-label">Joueuses / joueurs repères</span>{['Léa D. · 14,8 pts', 'Maya R. · 8,2 reb', 'Inès B. · 5,6 ast', 'Camille T. · 2,4 int'].map((player, index) => <div className="hgse-player-row" key={player}><div className="hgse-avatar">{index + 7}</div><strong>{player}</strong><span>{index === 0 ? 'Forme ↗' : 'Saison'}</span></div>)}</article>
+      </div>
     </section>
   )
 
   if (feature === 'match') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Match fictif · terminé</span><h2>Épernon 78 — 71 Rambouillet</h2></div><strong>+7</strong></div>
-      <div className="showroom-stats"><Stat label="eFG %" value="54.8%" note="+5.2 vs adversaire" /><Stat label="Rebonds" value="41" note="12 offensifs" /><Stat label="Turnovers" value="9" note="meilleur total saison" /><Stat label="Pace" value="73" note="rythme maîtrisé" /></div>
-      <div className="showroom-chart"><span className="showroom-section-label">Écart au score</span><div className="showroom-bars">{[4, 9, 6, 14, 10, 18, 13, 21, 17, 24, 20, 28].map((height, i) => <i key={i} style={{ height: `${height * 3}px` }} />)}</div><div className="showroom-chart-axis"><span>Q1</span><span>Q2</span><span>Q3</span><span>Q4</span></div></div>
+    <section className="hgse-showcase">
+      <SectionHead eyebrow="Gestion des matchs" title="Fiche match" note="Résumé, statistiques et feuille de match dans une même vue." />
+      <div className="hgse-scoreboard"><div><div className="hgse-team-logo">HG</div><strong>HGSE Basket</strong></div><div className="hgse-score-center"><span>U15 F · Championnat</span><strong>68 <em>–</em> 52</strong><small>Sam. 20 sept. 2026 · 14h30 · Gymnase Épernon</small></div><div><div className="hgse-team-logo away">RB</div><strong>Rambouillet</strong></div></div>
+      <div className="hgse-tab-row">{([['summary', 'Résumé'], ['stats', 'Stats'], ['sheet', 'Feuille de match']] as const).map(([id, label]) => <button key={id} type="button" className={matchTab === id ? 'active' : ''} onClick={() => { setMatchTab(id); onFeature('match', `tab_${id}`) }}>{label}</button>)}</div>
+      {matchTab === 'summary' && <div className="hgse-match-grid"><article className="hgse-panel"><span className="hgse-label">Résumé</span><h3>Une victoire construite par la défense.</h3><p>Très belle solidarité des U15 F, avec une forte pression sur le porteur et une meilleure maîtrise du rebond en seconde période.</p><div className="hgse-mvp"><div className="hgse-avatar">LD</div><div><span>Joueuse du match</span><strong>Léa D.</strong><small>18 points · 7 rebonds · 4 passes</small></div></div></article><article className="hgse-panel"><span className="hgse-label">Temps forts</span><div className="hgse-quarter"><span>Q1</span><strong>16–14</strong></div><div className="hgse-quarter"><span>Q2</span><strong>17–13</strong></div><div className="hgse-quarter"><span>Q3</span><strong>20–10</strong></div><div className="hgse-quarter"><span>Q4</span><strong>15–15</strong></div></article></div>}
+      {matchTab === 'stats' && <div className="hgse-kpi-grid"><div><span>eFG %</span><strong>54,8 %</strong><small>+5,2 vs adversaire</small></div><div><span>Rebonds</span><strong>41</strong><small>12 offensifs</small></div><div><span>Passes</span><strong>18</strong><small>ballon bien partagé</small></div><div><span>Turnovers</span><strong>9</strong><small>meilleur total saison</small></div></div>}
+      {matchTab === 'sheet' && <div className="hgse-roster-table"><div className="head"><span>Joueuse</span><span>PTS</span><span>REB</span><span>AST</span><span>MIN</span></div>{[['Léa D.',18,7,4,29],['Maya R.',13,9,2,27],['Inès B.',11,4,6,31],['Camille T.',9,5,3,24],['Zoé M.',7,6,1,22]].map(row => <div key={String(row[0])}>{row.map((value, index) => <span key={`${row[0]}-${index}`}>{value}</span>)}</div>)}</div>}
     </section>
   )
 
-  if (feature === 'compare') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Comparateur</span><h2>Diallo vs Bernard</h2></div><strong>5 derniers matchs</strong></div>
-      <div className="showroom-compare"><div><span>M. Diallo</span><strong>18.6</strong><small>points</small><strong>7.4</strong><small>passes</small><strong>22.1</strong><small>efficacité</small></div><div className="showroom-versus">VS</div><div><span>L. Bernard</span><strong>15.2</strong><small>points</small><strong>3.1</strong><small>passes</small><strong>18.7</strong><small>efficacité</small></div></div>
+  if (feature === 'statistics') return (
+    <section className="hgse-showcase">
+      <SectionHead eyebrow="Data & performance" title="Statistiques" note="Lecture club, équipes et progression des jeunes sur la saison." />
+      <div className="hgse-kpi-grid"><div><span>Licenciés</span><strong>180</strong><small className="positive">+12 % vs N-1</small></div><div><span>Taux de victoire</span><strong>65 %</strong><small>toutes équipes</small></div><div><span>Points / match</span><strong>71,4</strong><small>+4,8 depuis janvier</small></div><div><span>Progression jeunes</span><strong>+32 %</strong><small>U11 → U15</small></div></div>
+      <div className="hgse-stats-layout"><article className="hgse-panel"><span className="hgse-label">Progression des équipes jeunes</span><div className="hgse-line-chart large"><svg viewBox="0 0 500 170" preserveAspectRatio="none"><polyline points="10,142 90,128 170,115 250,89 330,73 410,45 490,20" /><polyline className="opponent" points="10,136 90,132 170,121 250,116 330,102 410,94 490,84" /></svg></div><div className="hgse-axis"><span>Jan.</span><span>Fév.</span><span>Mars</span><span>Avr.</span><span>Mai</span><span>Juin</span></div></article><article className="hgse-panel"><span className="hgse-label">Répartition saison</span><div className="hgse-donut"><div><strong>65%</strong><span>victoires</span></div></div><div className="hgse-stat-lines"><div><span>Victoires</span><strong>42</strong></div><div><span>Défaites</span><strong>23</strong></div><div><span>Matchs joués</span><strong>65</strong></div></div></article></div>
+      <div className="hgse-team-progress"><span className="hgse-label">Efficacité collective</span>{[['U13 G', 78], ['U15 F', 86], ['U18 M', 72], ['Seniors M', 82]].map(([name, value]) => <div key={String(name)}><strong>{name}</strong><div><i style={{ width: `${value}%` }} /></div><span>{value}</span></div>)}</div>
+    </section>
+  )
+
+  if (feature === 'club') return (
+    <section className="hgse-showcase">
+      <SectionHead eyebrow="Pilotage association" title="Club / Association" note="Licences, bénévoles, documents, événements et actions administratives." />
+      <div className="hgse-kpi-grid"><div><span>Licences validées</span><strong>173 / 180</strong><small>7 dossiers à compléter</small></div><div><span>Bénévoles actifs</span><strong>32</strong><small>6 missions ce week-end</small></div><div><span>Documents</span><strong>48</strong><small>4 modifiés cette semaine</small></div><div><span>Événements</span><strong>5</strong><small>sur les 30 prochains jours</small></div></div>
+      <div className="hgse-club-grid"><article className="hgse-panel"><span className="hgse-label">Actions à faire</span><div className={`hgse-task ${clubTaskDone ? 'done' : ''}`}><button type="button" onClick={() => { setClubTaskDone(true); onFeature('club', 'complete_task') }}>{clubTaskDone ? '✓' : '○'}</button><div><strong>Relancer 7 dossiers licences</strong><span>Échéance · 24 septembre</span></div></div><div className="hgse-task"><button type="button">○</button><div><strong>Confirmer les bénévoles table de marque</strong><span>3 réponses manquantes</span></div></div><div className="hgse-task"><button type="button">○</button><div><strong>Publier les horaires du week-end</strong><span>Site + groupes équipes</span></div></div></article><article className="hgse-panel"><span className="hgse-label">Documents récents</span>{[['Règlement intérieur 2026', 'PDF · Bureau'], ['Planning gymnase septembre', 'XLSX · Sportif'], ['Dossier licences 2026', '7 incomplets'], ['Charte bénévoles', 'PDF · Association']].map(([name, meta]) => <button className="hgse-document" type="button" key={name} onClick={() => onFeature('club', 'open_document')}><span>▤</span><div><strong>{name}</strong><small>{meta}</small></div><b>→</b></button>)}</article></div>
+    </section>
+  )
+
+  if (feature === 'assistant') return (
+    <section className="hgse-showcase hgse-assistant-page">
+      <SectionHead eyebrow="Assistant agentique" title="Assistant HGSE" note="Un copilote de club capable de retrouver, analyser, rédiger et proposer des actions." />
+      <div className="hgse-agent-status"><div className="hgse-agent-orb">HG</div><div><strong>Assistant HGSE</strong><span><i /> En ligne · données de démonstration</span></div><em>IA</em></div>
+      <div className="hgse-agent-actions">{[['▣', 'Créer un planning'], ['✎', 'Rédiger un message'], ['▥', 'Analyser les statistiques'], ['⌕', 'Rechercher un joueur'], ['▤', 'Trouver un document'], ['✓', 'Aide à la gestion du club']].map(([icon, label]) => <button key={label} type="button" onClick={() => { setAssistantInput(label); onFeature('assistant', `quick_${label}`) }}><span>{icon}</span>{label}</button>)}</div>
+      <div className="hgse-agent-chat">{assistantMessages.map((message, index) => <div key={index} className={message.role === 'visitor' ? 'visitor' : 'assistant'}><span>{message.role === 'visitor' ? 'Vous' : 'Assistant HGSE'}</span><p>{message.text}</p></div>)}</div>
+      <form className="hgse-agent-form" onSubmit={sendAssistant}><input value={assistantInput} onChange={event => setAssistantInput(event.target.value)} placeholder="Écrivez votre demande…" /><button type="submit">Envoyer</button></form>
     </section>
   )
 
   return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Équipe fictive</span><h2>Épernon Basket · Senior M</h2></div><strong>6 V · 2 D</strong></div>
-      <div className="showroom-stats"><Stat label="Offensive rating" value="112.4" note="3e de la poule" /><Stat label="Défensive rating" value="101.8" note="+4.1 sur 5 matchs" /><Stat label="Différentiel" value="+10.6" note="tendance positive" /><Stat label="Forme" value="W W L W W" note="5 derniers matchs" /></div>
-      <div className="showroom-split"><div className="showroom-callout"><span>Signal du moment</span><strong>Le rebond offensif progresse.</strong><p>+18 % sur trois matchs dans ce jeu de données fictif.</p><button type="button" onClick={() => onFeature('match', 'open_last_match')}>Voir le dernier match</button></div><div><span className="showroom-section-label">Impact joueurs</span>{PLAYERS.slice(0, 3).map(player => <div key={player.name} className="showroom-impact"><span>{player.name}</span><div><i style={{ width: `${player.eff * 3.5}%` }} /></div><strong>{player.eff}</strong></div>)}</div></div>
+    <section className="hgse-showcase">
+      <div className="hgse-dashboard-top"><div className="hgse-search">⌕ <input placeholder="Rechercher un joueur, un match, un document…" /></div><div className="hgse-admin"><span className="hgse-notification">♟<b>3</b></span><div className="hgse-avatar">NB</div><div><strong>Nicolas</strong><small>Administrateur</small></div></div></div>
+      <div className="hgse-hero"><div><span>HGSE BASKET · ÉPERNON</span><h1>Bienvenue au HGSE Basket</h1><p>Sport <i>·</i> Partage <i>·</i> Respect <i>·</i> Progression</p></div><div className="hgse-hero-ball">🏀</div><strong>Plus qu’un club,<br />une famille !</strong></div>
+      <div className="hgse-kpi-grid dashboard"><div><span>Équipes</span><strong>12</strong><small>U7 → Seniors</small></div><div><span>Licenciés</span><strong>180</strong><small className="positive">+12 % cette saison</small></div><div><span>Matchs ce mois-ci</span><strong>28</strong><small>11 à domicile</small></div><div><span>Bénévoles actifs</span><strong>32</strong><small>6 mobilisés ce week-end</small></div></div>
+      <div className="hgse-dashboard-grid">
+        <div className="hgse-dashboard-main">
+          <div className="hgse-home-columns"><article className="hgse-panel"><div className="hgse-panel-head"><strong>Prochains événements</strong><button type="button" onClick={() => onFeature('planning', 'view_all')}>Voir tout →</button></div>{schedule.slice(2, 5).map(item => <div className="hgse-event-row" key={item.title}><time>{item.day.replace(' SEP.', '')}<small>SEP.</small></time><div><strong>{item.title}</strong><span>{item.time} · {item.place}</span></div><b>Match</b></div>)}</article><article className="hgse-panel"><div className="hgse-panel-head"><strong>Actualités du club</strong><button type="button" onClick={() => onFeature('club', 'news')}>Voir tout →</button></div><div className="hgse-news"><span>15 sept.</span><strong>Reprise des entraînements</strong><p>La saison 2026–2027 est lancée : tous les créneaux sont en ligne.</p></div><div className="hgse-news"><span>12 sept.</span><strong>Inscriptions encore ouvertes</strong><p>Quelques places restent disponibles en U13 et U15.</p></div><div className="hgse-news"><span>8 sept.</span><strong>Tournoi de rentrée</strong><p>Un grand merci à tous les bénévoles.</p></div></article></div>
+          <article className="hgse-panel hgse-global-stats"><div className="hgse-panel-head"><strong>Statistiques globales · 2025–2026</strong><button type="button" onClick={() => onFeature('statistics', 'open_stats')}>Explorer →</button></div><div className="hgse-global-row"><div><strong>180</strong><span>Licenciés</span><small>+12 %</small></div><div className="hgse-mini-bars">{[24, 34, 44, 55, 68, 82, 96].map(value => <i key={value} style={{ height: `${value}%` }} />)}</div><div><strong>65 %</strong><span>Taux de victoires</span></div><div className="hgse-mini-donut" /><div><strong>+32 %</strong><span>Progression jeunes</span><small>U11 → U15</small></div></div></article>
+        </div>
+        <aside className="hgse-assistant-card"><div className="hgse-agent-status compact"><div className="hgse-agent-orb">HG</div><div><strong>Assistant HGSE</strong><span><i /> En ligne</span></div><em>IA</em></div><div className="hgse-assistant-welcome"><div className="hgse-agent-orb tiny">HG</div><p>Bonjour ! 👋<br />Je peux gérer les plannings, retrouver des informations, analyser les statistiques ou rédiger un message aux licenciés.</p></div><span className="hgse-question">Que puis-je faire pour vous aujourd’hui ?</span>{['Créer un planning', 'Rédiger un message', 'Analyser les statistiques', 'Rechercher un joueur', 'Trouver un document'].map(label => <button key={label} type="button" onClick={() => onFeature('assistant', `dashboard_${label}`)}>{label}<span>→</span></button>)}</aside>
+      </div>
     </section>
   )
 }
