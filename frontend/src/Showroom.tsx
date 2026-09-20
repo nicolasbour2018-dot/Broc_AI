@@ -61,15 +61,16 @@ const DEMOS: Record<DemoKey, DemoMeta> = {
   },
   jarvis: {
     name: 'Jarvis',
-    eyebrow: 'Assistant quotidien',
-    description: 'Agenda familial, maison, courses et routines dans un assistant futuriste entièrement simulé.',
-    promise: 'Un cockpit familial sans connexion à des services réels.',
-    icon: '✦',
+    eyebrow: 'Assistant familial intelligent',
+    description: 'Agenda, maison connectée, organisation du foyer et assistant agentique réunis dans un même centre de contrôle familial.',
+    promise: 'La famille, la maison et le quotidien dans une seule interface.',
+    icon: '◉',
     features: [
-      { id: 'dashboard', label: 'Aujourd’hui' },
-      { id: 'agenda', label: 'Agenda' },
+      { id: 'dashboard', label: 'Accueil' },
+      { id: 'family', label: 'Famille' },
       { id: 'home', label: 'Maison' },
-      { id: 'assistant', label: 'Assistant' }
+      { id: 'organization', label: 'Organisation' },
+      { id: 'assistant', label: 'Jarvis' }
     ]
   }
 }
@@ -854,17 +855,92 @@ function GarageView({ feature, onFeature }: { feature: string; onFeature: (featu
 }
 
 function JarvisView({ feature, onFeature }: { feature: string; onFeature: (feature: string, action?: string) => void }) {
+  const members = ['Tous', 'Parent 1', 'Parent 2', 'Enfants'] as const
+  const [selectedMember, setSelectedMember] = useState<(typeof members)[number]>('Tous')
   const [lightsOn, setLightsOn] = useState(true)
-  const [routineRun, setRoutineRun] = useState(false)
+  const [homeMode, setHomeMode] = useState<'Soirée' | 'Film' | 'Départ' | 'Nuit'>('Soirée')
+  const [routineFeedback, setRoutineFeedback] = useState('Maison calme · aucune alerte')
+  const [groceries, setGroceries] = useState([
+    { label: 'Lait', done: false },
+    { label: 'Pain', done: true },
+    { label: 'Pommes', done: false },
+    { label: 'Pâtes', done: false },
+    { label: 'Produit vaisselle', done: false }
+  ])
+  const [newItem, setNewItem] = useState('')
+  const [extraTask, setExtraTask] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>(DEFAULT_JARVIS_CHAT)
   const chatStarted = useRef(false)
+
+  const familyEvents = [
+    { time: '08:30', member: 'Enfants', title: 'École', note: 'Dépose du matin' },
+    { time: '14:00', member: 'Parent 2', title: 'Rendez-vous', note: 'Centre-ville · 45 min' },
+    { time: '17:30', member: 'Enfants', title: 'Activité enfant', note: 'Sport · sac à prévoir' },
+    { time: '19:30', member: 'Tous', title: 'Dîner', note: 'Repas en famille' }
+  ]
+
+  function addGrocery(label: string) {
+    const clean = label.trim()
+    if (!clean) return
+    setGroceries(items => items.some(item => item.label.toLowerCase() === clean.toLowerCase()) ? items : [...items, { label: clean, done: false }])
+    setNewItem('')
+  }
+
+  function runRoutine(mode: 'Film' | 'Départ' | 'Nuit' | 'Soirée') {
+    setHomeMode(mode)
+    if (mode === 'Film') {
+      setLightsOn(true)
+      setRoutineFeedback('Mode Film · lumière salon tamisée · volets fermés')
+    } else if (mode === 'Départ') {
+      setLightsOn(false)
+      setRoutineFeedback('Mode Départ · lumières coupées · portes vérifiées')
+    } else if (mode === 'Nuit') {
+      setLightsOn(false)
+      setRoutineFeedback('Mode Nuit · maison sécurisée · température abaissée')
+    } else {
+      setLightsOn(true)
+      setRoutineFeedback('Mode Soirée · éclairage doux · confort activé')
+    }
+    onFeature('home', `routine_${mode.toLowerCase()}`)
+  }
+
+  function answerJarvis(cleaned: string): string {
+    const value = cleaned.toLowerCase()
+    if (value.includes('film')) {
+      runRoutine('Film')
+      return 'Mode Film activé. J’ai tamisé l’éclairage du salon et fermé les volets dans cette démo.'
+    }
+    if (value.includes('café') || value.includes('cafe')) {
+      addGrocery('Café')
+      return 'Café ajouté à la liste de courses. La liste partagée est à jour.'
+    }
+    if ((value.includes('éteins') || value.includes('eteins')) && value.includes('salon')) {
+      setLightsOn(false)
+      setRoutineFeedback('Salon · lumières éteintes sur demande')
+      return 'C’est fait. Les lumières du salon sont éteintes dans la simulation.'
+    }
+    if (value.includes('départ') || value.includes('depart')) {
+      runRoutine('Départ')
+      return 'Mode Départ prêt : lumières coupées, portes vérifiées et maison passée en économie.'
+    }
+    if (value.includes('poubelle')) {
+      setExtraTask(true)
+      return 'J’ai ajouté « Sortir les poubelles » aux tâches de demain.'
+    }
+    if (value.includes('demain') || value.includes('enfant')) return 'Demain : école à 8 h 30, activité à 17 h 30 et un rappel pour le sac de sport. Le créneau le plus chargé est entre 16 h 30 et 19 h.'
+    if (value.includes('course')) return `Il reste ${groceries.filter(item => !item.done).length} article(s) à prendre. Les priorités sont le lait, les pâtes et les pommes.`
+    if (value.includes('dépense') || value.includes('depense') || value.includes('budget')) return 'Le budget commun simulé est maîtrisé : 1 245 € dépensés sur 1 800 € ce mois-ci. Les courses représentent le premier poste.'
+    if (value.includes('journ') || value.includes('résume') || value.includes('resume')) return 'Tu as quatre temps forts aujourd’hui. Le prochain est à 14 h, quatre tâches restent ouvertes et la maison est en mode Soirée.'
+    return 'Je peux résumer l’agenda, agir sur la maison, mettre à jour les courses ou te donner une synthèse du foyer. Tout reste local à cette démonstration.'
+  }
 
   function send(e: FormEvent) {
     e.preventDefault()
     const cleaned = input.trim()
     if (!cleaned) return
-    const next = [...messages, { role: 'visitor' as const, text: cleaned }, { role: 'assistant' as const, text: jarvisReply(cleaned) }]
+    const reply = answerJarvis(cleaned)
+    const next = [...messages, { role: 'visitor' as const, text: cleaned }, { role: 'assistant' as const, text: reply }]
     setMessages(next)
     setInput('')
     if (!chatStarted.current) {
@@ -874,35 +950,93 @@ function JarvisView({ feature, onFeature }: { feature: string; onFeature: (featu
     void trackEvent('message_count', { demo: 'jarvis', count: next.length - 1 })
   }
 
-  if (feature === 'agenda') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Agenda fictif</span><h2>Jeudi 18 septembre</h2></div><strong>4 rendez-vous</strong></div>
-      <div className="showroom-agenda"><article><time>08:30</time><div><strong>École</strong><p>Dépose du matin</p></div></article><article><time>12:30</time><div><strong>Déjeuner</strong><p>Rendez-vous simulé</p></div></article><article><time>16:30</time><div><strong>Activité</strong><p>Rappel familial fictif</p></div></article><article><time>18:00</time><div><strong>Courses</strong><p>Liste prête · 5 articles</p></div></article></div>
-    </section>
+  const Core = ({ compact = false }: { compact?: boolean }) => (
+    <div className={`jarvis-core ${compact ? 'compact' : ''}`} aria-hidden="true">
+      <i className="jarvis-ring ring-one" /><i className="jarvis-ring ring-two" /><i className="jarvis-ring ring-three" />
+      <div className="jarvis-core-center"><span>|||</span><strong>JARVIS</strong></div>
+    </div>
   )
+
+  if (feature === 'family') {
+    const visibleEvents = familyEvents.filter(event => selectedMember === 'Tous' || event.member === selectedMember || event.member === 'Tous')
+    return (
+      <section className="jarvis-page">
+        <div className="jarvis-page-head"><div><span>FAMILLE</span><h1>Planning partagé</h1><p>La journée de chacun, réunie sans surcharge.</p></div><div className="jarvis-status-pill">Dim. 20 sept. · 4 événements</div></div>
+        <div className="jarvis-filter-row">{members.map(member => <button key={member} type="button" className={selectedMember === member ? 'active' : ''} onClick={() => { setSelectedMember(member); onFeature('family', `filter_${member}`) }}>{member}</button>)}</div>
+        <div className="jarvis-family-layout">
+          <div className="jarvis-panel">
+            <div className="jarvis-panel-title"><span>AUJOURD’HUI</span><strong>Dimanche 20 septembre</strong></div>
+            <div className="jarvis-family-timeline">{visibleEvents.map(event => <article key={`${event.time}-${event.title}`}><time>{event.time}</time><i /><div><strong>{event.title}</strong><span>{event.member} · {event.note}</span></div></article>)}</div>
+          </div>
+          <div className="jarvis-side-stack">
+            <div className="jarvis-panel"><div className="jarvis-panel-title"><span>À NE PAS OUBLIER</span><strong>3 rappels</strong></div><ul className="jarvis-reminders"><li>🎒 Sac de sport · 17 h 30</li><li>✉️ Autorisation scolaire · demain</li><li>🎂 Anniversaire · samedi</li></ul></div>
+            <div className="jarvis-ai-note"><Core compact /><div><span>SYNTHÈSE JARVIS</span><strong>Fin de journée dense</strong><p>Deux événements se suivent entre 17 h 30 et 19 h 30. Prévoir le départ à 17 h 05.</p></div></div>
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   if (feature === 'home') return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Maison fictive</span><h2>État de la maison</h2></div><strong>Aucun appareil réel connecté</strong></div>
-      <div className="showroom-device-grid"><button type="button" className={lightsOn ? 'active' : ''} onClick={() => { setLightsOn(value => !value); onFeature('home', 'toggle_lights') }}><span>Salon</span><strong>{lightsOn ? 'Lumières ON' : 'Lumières OFF'}</strong><small>simulation locale</small></button><article><span>Température</span><strong>20.8 °C</strong><small>valeur fictive</small></article><article><span>Porte</span><strong>Verrouillée</strong><small>état fictif</small></article><article><span>Énergie</span><strong>1.4 kW</strong><small>consommation simulée</small></article></div>
-      <button className="showroom-action" type="button" onClick={() => { setRoutineRun(true); onFeature('home', 'run_routine') }}>{routineRun ? '✓ Routine “départ” simulée' : 'Simuler la routine “départ”'}</button>
-    </section>
-  )
+    <section className="jarvis-page">
+      <div className="jarvis-page-head"><div><span>MAISON</span><h1>Maison connectée</h1><p>Des commandes simples, avec un état immédiatement lisible.</p></div><div className="jarvis-status-pill good">● Sécurisée · {homeMode}</div></div>
+        <div className="jarvis-room-grid">
+          <button type="button" className={lightsOn ? 'active' : ''} onClick={() => { setLightsOn(value => !value); onFeature('home', 'toggle_living_room') }}><span>Salon</span><strong>21 °C</strong><small>{lightsOn ? '💡 Lumière 60 %' : '○ Lumières éteintes'}</small></button>
+          <article><span>Cuisine</span><strong>20.5 °C</strong><small>Volets ouverts · prise café OFF</small></article>
+          <article><span>Chambre</span><strong>19.2 °C</strong><small>Volets 80 % · calme</small></article>
+          <article><span>Entrée</span><strong>Portes OK</strong><small>Alarme veille · aucun mouvement</small></article>
+        </div>
+        <div className="jarvis-section-title"><div><span>ROUTINES</span><h2>Un geste, plusieurs actions</h2></div><small>{routineFeedback}</small></div>
+        <div className="jarvis-routine-grid">
+          {[['Soirée', '☾', 'Éclairage doux · confort'], ['Film', '▶', 'Lumières tamisées · volets'], ['Départ', '↗', 'Extinction · sécurité'], ['Nuit', '✦', 'Verrouillage · économie']].map(([mode, icon, note]) => <button key={mode} type="button" className={homeMode === mode ? 'active' : ''} onClick={() => runRoutine(mode as 'Film' | 'Départ' | 'Nuit' | 'Soirée')}><b>{icon}</b><strong>{mode}</strong><span>{note}</span></button>)}
+        </div>
+      </section>
+    )
+
+  if (feature === 'organization') return (
+    <section className="jarvis-page">
+      <div className="jarvis-page-head"><div><span>ORGANISATION</span><h1>Le quotidien partagé</h1><p>Courses, tâches et budget dans une vue légère.</p></div><div className="jarvis-status-pill">4 tâches · {groceries.filter(item => !item.done).length} courses</div></div>
+        <div className="jarvis-organization-grid">
+          <div className="jarvis-panel">
+            <div className="jarvis-panel-title"><span>COURSES</span><strong>Liste familiale</strong></div>
+            <div className="jarvis-grocery-list">{groceries.map((item, index) => <label key={item.label} className={item.done ? 'done' : ''}><input type="checkbox" checked={item.done} onChange={() => setGroceries(items => items.map((current, i) => i === index ? { ...current, done: !current.done } : current))} /><span>{item.label}</span></label>)}</div>
+            <form className="jarvis-add-row" onSubmit={event => { event.preventDefault(); addGrocery(newItem); onFeature('organization', 'add_grocery') }}><input value={newItem} onChange={event => setNewItem(event.target.value)} placeholder="Ajouter un article…" /><button type="submit">＋</button></form>
+          </div>
+          <div className="jarvis-panel">
+            <div className="jarvis-panel-title"><span>TÂCHES</span><strong>À faire</strong></div>
+            <div className="jarvis-task-list"><div><i>✓</i><span><strong>Commander les courses</strong><small>Famille · aujourd’hui</small></span></div><div><i>○</i><span><strong>Ranger la chambre</strong><small>Enfants · ce soir</small></span></div><div><i>○</i><span><strong>Préparer les sacs</strong><small>Parent 1 · demain</small></span></div>{extraTask && <div className="new"><i>○</i><span><strong>Sortir les poubelles</strong><small>Parent 2 · demain</small></span></div>}</div>
+          </div>
+          <div className="jarvis-panel jarvis-budget-panel">
+            <div className="jarvis-panel-title"><span>BUDGET DU FOYER</span><strong>Septembre</strong></div>
+            <div className="jarvis-budget-total"><strong>1 245 €</strong><span>/ 1 800 €</span></div>
+            <div className="jarvis-budget-bar"><i style={{ width: '69%' }} /></div>
+            <div className="jarvis-budget-lines"><div><span>Courses</span><strong>420 €</strong></div><div><span>Maison</span><strong>315 €</strong></div><div><span>Loisirs</span><strong>190 €</strong></div></div>
+          </div>
+        </div>
+      </section>
+    )
 
   if (feature === 'assistant') return (
-    <section className="showroom-panel showroom-chat-panel">
-      <div className="showroom-panel-head"><div><span>Assistant fictif</span><h2>Jarvis</h2></div><strong>Simulation transparente</strong></div>
-      <div className="showroom-chat">{messages.map((message, index) => <div key={index} className={`showroom-message ${message.role}`}><span>{message.role === 'assistant' ? 'Jarvis' : 'Vous'}</span><p>{message.text}</p></div>)}</div>
-      <div className="showroom-chips"><button type="button" onClick={() => setInput('Résume ma journée')}>Résume ma journée</button><button type="button" onClick={() => setInput('Lance la routine départ')}>Routine départ</button></div>
-      <form className="showroom-chat-form" onSubmit={send}><input value={input} onChange={e => setInput(e.target.value)} placeholder="Parle au Jarvis de démonstration…" /><button type="submit">Envoyer</button></form>
+    <section className="jarvis-page jarvis-assistant-page">
+      <div className="jarvis-assistant-head"><Core /><div><span>JARVIS · ASSISTANT FAMILIAL</span><h1>Que puis-je simplifier ?</h1><p>Je consulte le scénario du foyer et je peux déclencher des actions locales dans la démo.</p></div></div>
+      <div className="jarvis-command-chips"><button type="button" onClick={() => setInput('Résume ma journée')}>Résume ma journée</button><button type="button" onClick={() => setInput('Active le mode film')}>Mode film</button><button type="button" onClick={() => setInput('Ajoute du café aux courses')}>Ajouter du café</button><button type="button" onClick={() => setInput('Qu’est-ce qu’on a demain ?')}>Demain ?</button></div>
+      <div className="jarvis-chat">{messages.map((message, index) => <div key={index} className={message.role}><span>{message.role === 'assistant' ? 'JARVIS' : 'VOUS'}</span><p>{message.text}</p></div>)}</div>
+      <form className="jarvis-chat-form" onSubmit={send}><Core compact /><input value={input} onChange={event => setInput(event.target.value)} placeholder="Demandez à Jarvis…" /><button type="submit">Envoyer</button></form>
+      <div className="jarvis-agent-strip"><span>Exemples d’actions</span><button type="button" onClick={() => { runRoutine('Film'); onFeature('assistant', 'quick_film') }}>▶ Mode Film</button><button type="button" onClick={() => { addGrocery('Café'); onFeature('assistant', 'quick_grocery') }}>＋ Café aux courses</button><button type="button" onClick={() => { setLightsOn(false); onFeature('assistant', 'quick_lights') }}>○ Éteindre le salon</button></div>
     </section>
   )
 
   return (
-    <section className="showroom-panel">
-      <div className="showroom-panel-head"><div><span>Maison fictive · maintenant</span><h2>Bonjour</h2></div><strong>20.8 °C · démo</strong></div>
-      <div className="showroom-stats"><Stat label="Prochain rendez-vous" value="12:30" note="déjeuner · fictif" /><Stat label="Activité familiale" value="16:30" note="rappel simulé" /><Stat label="Courses" value="5" note="articles simulés" /><Stat label="Maison" value="OK" note="aucun appareil réel" /></div>
-      <div className="showroom-split"><div className="showroom-callout"><span>Jarvis suggère</span><strong>La journée est légère jusqu’à 16:30.</strong><p>Une fenêtre fictive de 90 minutes est disponible après le déjeuner.</p><button type="button" onClick={() => onFeature('assistant', 'open_assistant')}>Ouvrir l’assistant</button></div><div><span className="showroom-section-label">Raccourcis</span><button className="showroom-shortcut" type="button" onClick={() => onFeature('agenda', 'open_agenda')}><span>Agenda</span><strong>4 événements</strong></button><button className="showroom-shortcut" type="button" onClick={() => onFeature('home', 'open_home')}><span>Maison</span><strong>Tout est simulé</strong></button></div></div>
+    <section className="jarvis-page jarvis-home-page">
+      <div className="jarvis-welcome"><div><span>DIMANCHE 20 SEPTEMBRE 2026 · 20:42</span><h1>Bonsoir.<br /><strong>Tout est sous contrôle.</strong></h1><p>Une maison plus douce. Une famille mieux organisée.</p></div><div className="jarvis-weather">☁︎ <strong>12 °C</strong><span>Ciel dégagé</span></div></div>
+      <div className="jarvis-dashboard-grid">
+        <div className="jarvis-panel jarvis-today-card"><div className="jarvis-panel-title"><span>AUJOURD’HUI</span><button type="button" onClick={() => onFeature('family', 'open_family')}>Voir tout →</button></div>{familyEvents.slice(0, 3).map(event => <div className="jarvis-mini-event" key={event.time}><time>{event.time}</time><i /><div><strong>{event.title}</strong><span>{event.member}</span></div></div>)}</div>
+        <div className="jarvis-core-stage"><Core /><span>ÉCOUTE · ANTICIPE · SIMPLIFIE</span></div>
+        <div className="jarvis-panel jarvis-home-summary"><div className="jarvis-panel-title"><span>MAISON</span><button type="button" onClick={() => onFeature('home', 'open_home')}>Tout voir →</button></div><div className="jarvis-home-mini-grid"><div><span>Salon</span><strong>21 °C</strong><small>Confort optimal</small></div><div><span>Lumières</span><strong>{lightsOn ? '3 actives' : 'Éteintes'}</strong><small>{lightsOn ? 'mode doux' : 'économie'}</small></div><div><span>Portes</span><strong className="good">Sécurisées</strong><small>Aucune alerte</small></div><div><span>Mode</span><strong>{homeMode}</strong><small>Routine active</small></div></div></div>
+        <div className="jarvis-panel jarvis-org-summary"><div className="jarvis-panel-title"><span>ORGANISATION</span><button type="button" onClick={() => onFeature('organization', 'open_organization')}>Voir tout →</button></div><div className="jarvis-summary-line"><b>✓</b><div><strong>{extraTask ? 5 : 4} tâches restantes</strong><span>2 prioritaires aujourd’hui</span></div></div><div className="jarvis-summary-line"><b>🛒</b><div><strong>{groceries.filter(item => !item.done).length} articles à prendre</strong><span>liste partagée</span></div></div></div>
+        <div className="jarvis-suggestion"><Core compact /><div><span>SUGGESTION JARVIS</span><strong>Vous partez dans 20 minutes.</strong><p>Je peux préparer la maison et vérifier les points essentiels.</p><button type="button" onClick={() => runRoutine('Départ')}>{homeMode === 'Départ' ? '✓ Mode Départ activé' : 'Activer le mode Départ'}</button></div></div>
+      </div>
+      <div className="jarvis-quickbar"><Core compact /><span>Demandez à Jarvis…</span><button type="button" onClick={() => onFeature('assistant', 'ask_day')}>Résume ma journée</button><button type="button" onClick={() => onFeature('assistant', 'ask_courses')}>Liste de courses</button><button type="button" onClick={() => onFeature('assistant', 'ask_evening')}>Prépare ce soir</button></div>
     </section>
   )
 }
