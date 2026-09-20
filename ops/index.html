@@ -26,6 +26,17 @@
 <button class="danger" data-action="failover-mac" data-confirm="FAILOVER">Failover → Mac<span class="muted">sync + validation + bascule DNS</span></button>
 <button class="danger" data-action="failback-vps" data-confirm="FAILBACK">Failback → VPS<span class="muted">maintenance courte + retour des données</span></button>
 </div></section>
+<section class="panel"><p class="eyebrow">Exports & clôture</p><p class="muted">Téléchargements directs avec le token Ops — aucun token Admin nécessaire.</p><div class="actions">
+<button data-export-dataset="events" data-export-format="csv">Events · CSV<span class="muted">analytics événementiels</span></button>
+<button data-export-dataset="events" data-export-format="json">Events · JSON<span class="muted">analytics événementiels</span></button>
+<button data-export-dataset="listings" data-export-format="csv">Listings · CSV<span class="muted">annonces, stands, ventes</span></button>
+<button data-export-dataset="listings" data-export-format="json">Listings · JSON<span class="muted">annonces, stands, ventes</span></button>
+<button data-export-dataset="ai_jobs" data-export-format="csv">AI Jobs · CSV<span class="muted">jobs, latences, résultats</span></button>
+<button data-export-dataset="ai_jobs" data-export-format="json">AI Jobs · JSON<span class="muted">jobs, latences, résultats</span></button>
+</div>
+<div class="auth" style="margin-top:14px"><input id="eventDate" type="date" aria-label="Date de l’événement"><button class="danger" data-action="export-bundle" data-confirm="EXPORT">Clôturer · Export Event Bundle</button></div>
+<p class="muted">Le bundle complet utilise le script 10.9 existant et reste non destructif. Il ne peut pas écraser un bundle déjà créé pour la même date.</p>
+</section>
 <section class="panel"><p class="eyebrow">Résultat</p><pre id="log" class="log">Console prête.</pre></section>
 </main>
 <script>
@@ -35,7 +46,10 @@ function token(){return $('token').value.trim()}
 function mark(el,ok,text){el.textContent=text;el.className=ok?'ok':'bad'}
 function age(sec){if(sec==null)return 'jamais';if(sec<60)return sec+' s';if(sec<3600)return Math.round(sec/60)+' min';return (sec/3600).toFixed(1)+' h'}
 async function api(path,opts={}){const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json','X-Ops-Token':token(),...(opts.headers||{})}});const d=await r.json();if(!r.ok)throw new Error(d.detail||d.output||'Erreur Ops');return d}
+const now=new Date();const localNow=new Date(now.getTime()-now.getTimezoneOffset()*60000);$('eventDate').value=localNow.toISOString().slice(0,10);
+async function downloadDataset(dataset,format,button){button.disabled=true;$('log').textContent=`Export ${dataset} ${format.toUpperCase()}…`;try{const url=new URL('/api/exports/dataset',window.location.origin);url.searchParams.set('dataset',dataset);url.searchParams.set('format',format);const r=await fetch(url,{headers:{'X-Ops-Token':token()}});if(!r.ok){let message='Export impossible';try{const d=await r.json();message=d.detail||d.output||message}catch{}throw new Error(message)}const blob=await r.blob();const href=URL.createObjectURL(blob);const a=document.createElement('a');a.href=href;const disposition=r.headers.get('Content-Disposition')||'';const match=disposition.match(/filename="([^"]+)"/);a.download=match?match[1]:`brocai-${dataset}.${format}`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(href),1000);$('log').textContent=`Export ${dataset} ${format.toUpperCase()} téléchargé.`}catch(e){$('log').textContent=String(e)}finally{button.disabled=false}}
 async function refresh(){if(!token())return;try{const d=await api('/api/status');$('origin').textContent=(d.public_origin||'unknown').toUpperCase();$('origin').className=d.public_origin==='vps'?'ok':d.public_origin==='mac'?'warn':'bad';mark($('vps'),d.vps_ready&&d.vps_tunnel,d.vps_ready&&d.vps_tunnel?'READY':'PROBLÈME');mark($('mac'),d.mac_ready&&d.mac_tunnel,d.mac_ready&&d.mac_tunnel?'READY':'PROBLÈME');mark($('ops'),d.ops_tunnel,d.ops_tunnel?'READY':'PROBLÈME');$('sync').textContent=age(d.standby_sync_age_seconds);$('commit').textContent=d.standby_commit?d.standby_commit.slice(0,8):'aucun commit';const fresh=d.standby_sync_age_seconds!=null&&d.standby_sync_age_seconds<=300;mark($('overall'),d.vps_ready&&d.mac_ready&&d.ops_tunnel&&fresh,(d.vps_ready&&d.mac_ready&&d.ops_tunnel&&fresh)?'✅ OK':'⚠ À VOIR')}catch(e){$('log').textContent=String(e)}}
-for(const b of document.querySelectorAll('[data-action]'))b.onclick=async()=>{const action=b.dataset.action,confirmWord=b.dataset.confirm;if(confirmWord&&!window.confirm(`Confirmer ${action} ?`))return;b.disabled=true;$('log').textContent=`${action}…`;try{const d=await api('/api/actions/'+action,{method:'POST',body:JSON.stringify({confirm:confirmWord||''})});$('log').textContent=d.output||'OK';await refresh()}catch(e){$('log').textContent=String(e)}finally{b.disabled=false}};
+for(const b of document.querySelectorAll('[data-export-dataset]'))b.onclick=()=>downloadDataset(b.dataset.exportDataset,b.dataset.exportFormat,b);
+for(const b of document.querySelectorAll('[data-action]'))b.onclick=async()=>{const action=b.dataset.action,confirmWord=b.dataset.confirm;if(confirmWord&&!window.confirm(action==='export-bundle'?'Créer le bundle complet de clôture pour cette date ?':`Confirmer ${action} ?`))return;b.disabled=true;$('log').textContent=`${action}…`;try{const d=await api('/api/actions/'+action,{method:'POST',body:JSON.stringify({confirm:confirmWord||'',event_date:action==='export-bundle'?$('eventDate').value:undefined})});$('log').textContent=d.output||'OK';await refresh()}catch(e){$('log').textContent=String(e)}finally{b.disabled=false}};
 refresh();setInterval(refresh,10000);
 </script></body></html>

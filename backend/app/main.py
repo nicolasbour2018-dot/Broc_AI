@@ -23,6 +23,7 @@ from .schemas import (
     ListingStatusUpdate,
     ListingUpdate,
 )
+from .seller_report import router as seller_report_router
 from .storage import image_exists, save_image
 from .telemetry import health_router, metric_snapshot_recorder, router as telemetry_router
 
@@ -53,6 +54,7 @@ app.mount("/media", StaticFiles(directory=settings.upload_dir, check_dir=False),
 app.include_router(health_router)
 app.include_router(telemetry_router)
 app.include_router(funlab_router)
+app.include_router(seller_report_router)
 
 
 def session_id(value: str | None) -> str:

@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import datetime as dt
 import hmac
 import json
 import os
 import subprocess
+import tempfile
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 INDEX = Path(__file__).with_name("index.html")
@@ -44,7 +47,11 @@ ACTIONS: dict[str, tuple[str, str | None, int | None]] = {
     "reboot-vps": ("restart-vps.sh", "REBOOT", 300),
     "failover-mac": ("failover-to-mac.sh", "FAILOVER", None),
     "failback-vps": ("failback-to-vps.sh", "FAILBACK", None),
+    "export-bundle": ("export-event-bundle.sh", "EXPORT", None),
 }
+
+EXPORT_DATASETS = {"events", "listings", "ai_jobs"}
+EXPORT_FORMATS = {"csv", "json"}
 
 
 def run_script(name: str, timeout: int | None, *args: str) -> dict[str, Any]:
@@ -81,6 +88,16 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def send_download(self, path: Path, filename: str, content_type: str) -> None:
+        body = path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def authorized(self) -> bool:
         supplied = self.headers.get("X-Ops-Token", "")
         return bool(OPS_TOKEN) and hmac.compare_digest(supplied, OPS_TOKEN)
@@ -98,7 +115,8 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     def do_GET(self) -> None:  # noqa: N802
-        if self.path in {"/", "/index.html"}:
+        parsed = urlparse(self.path)
+        if parsed.path in {"/", "/index.html"}:
             body = INDEX.read_bytes()
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -107,10 +125,10 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        if self.path == "/health":
+        if parsed.path == "/health":
             self.send_json(HTTPStatus.OK, {"status": "ok"})
             return
-        if self.path == "/api/status":
+        if parsed.path == "/api/status":
             if not self.authorized():
                 self.send_json(HTTPStatus.UNAUTHORIZED, {"detail": "Token Ops invalide."})
                 return
@@ -124,6 +142,51 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.BAD_GATEWAY, {"ok": False, "output": result["output"]})
                 return
             self.send_json(HTTPStatus.OK, payload)
+            return
+        if parsed.path == "/api/exports/dataset":
+            if not self.authorized():
+                self.send_json(HTTPStatus.UNAUTHORIZED, {"detail": "Token Ops invalide."})
+                return
+            query = parse_qs(parsed.query)
+            dataset = (query.get("dataset") or [""])[0]
+            export_format = (query.get("format") or [""])[0]
+            if dataset not in EXPORT_DATASETS or export_format not in EXPORT_FORMATS:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"detail": "Dataset ou format d’export invalide."})
+                return
+            if not ACTION_LOCK.acquire(blocking=False):
+                self.send_json(HTTPStatus.CONFLICT, {"detail": "Une action Ops est déjà en cours."})
+                return
+            try:
+                suffix = "csv" if export_format == "csv" else "json"
+                stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+                filename = f"brocai-{dataset}-{stamp}.{suffix}"
+                with tempfile.TemporaryDirectory(prefix="brocai-ops-export-") as tmp:
+                    output = Path(tmp) / filename
+                    try:
+                        result = run_script(
+                            "export-ops-dataset.sh",
+                            120,
+                            dataset,
+                            export_format,
+                            str(output),
+                        )
+                    except subprocess.TimeoutExpired:
+                        self.send_json(
+                            HTTPStatus.GATEWAY_TIMEOUT,
+                            {"ok": False, "detail": "Export Ops expiré."},
+                        )
+                        return
+                    if not result["ok"] or not output.is_file():
+                        self.send_json(HTTPStatus.BAD_GATEWAY, result)
+                        return
+                    content_type = (
+                        "text/csv; charset=utf-8"
+                        if export_format == "csv"
+                        else "application/json; charset=utf-8"
+                    )
+                    self.send_download(output, filename, content_type)
+            finally:
+                ACTION_LOCK.release()
             return
         self.send_json(HTTPStatus.NOT_FOUND, {"detail": "Not found"})
 
@@ -144,12 +207,24 @@ class Handler(BaseHTTPRequestHandler):
         if required_confirmation and payload.get("confirm") != required_confirmation:
             self.send_json(HTTPStatus.BAD_REQUEST, {"detail": f"Confirmation {required_confirmation} requise."})
             return
+        args: list[str] = []
+        if action == "export-bundle":
+            event_date = str(payload.get("event_date", "")).strip()
+            try:
+                parsed_date = dt.date.fromisoformat(event_date)
+            except ValueError:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"detail": "Date événement invalide."})
+                return
+            if parsed_date.isoformat() != event_date:
+                self.send_json(HTTPStatus.BAD_REQUEST, {"detail": "Date événement invalide."})
+                return
+            args.append(event_date)
         if not ACTION_LOCK.acquire(blocking=False):
             self.send_json(HTTPStatus.CONFLICT, {"detail": "Une action Ops est déjà en cours."})
             return
         try:
             try:
-                result = run_script(script, timeout)
+                result = run_script(script, timeout, *args)
             except subprocess.TimeoutExpired:
                 self.send_json(HTTPStatus.GATEWAY_TIMEOUT, {"ok": False, "detail": "Action Ops expirée."})
                 return

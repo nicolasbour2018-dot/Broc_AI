@@ -205,6 +205,24 @@ export async function fetchSellerListings(standNumber: string): Promise<Listing[
   return response.json() as Promise<Listing[]>
 }
 
+export async function downloadSellerReport(standNumber: string): Promise<void> {
+  const url = new URL('/api/seller/report', window.location.origin)
+  url.searchParams.set('stand_number', standNumber.trim())
+  const response = await fetch(url, { headers: { 'X-Session-ID': getSessionId() } })
+  if (!response.ok) throw new Error(await parseError(response))
+
+  const blob = await response.blob()
+  const href = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  const safeStand = standNumber.trim().replace(/[^a-zA-Z0-9_-]+/g, '-') || 'stand'
+  anchor.href = href
+  anchor.download = `brocai-${safeStand}-bilan.pdf`
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(href), 1000)
+}
+
 export async function setListingSold(listingId: string, standNumber: string, sold: boolean): Promise<Listing> {
   const response = await fetch(`/api/seller/listings/${encodeURIComponent(listingId)}/status`, {
     method: 'PATCH',

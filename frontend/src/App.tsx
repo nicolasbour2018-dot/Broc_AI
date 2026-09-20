@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
+import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, downloadSellerReport, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
 import Admin from './Admin'
 import Showroom from './Showroom'
 import FunLab from './FunLab'
@@ -102,6 +102,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
   const [preview, setPreview] = useState(false)
   const [published, setPublished] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(false)
+  const [reportLoading, setReportLoading] = useState(false)
   const [aiProgress, setAiProgress] = useState<AiJobProgress | null>(null)
   const [error, setError] = useState('')
 
@@ -235,6 +236,17 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     }
   }
 
+  async function exportSellerReport() {
+    setReportLoading(true); setError('')
+    try {
+      await downloadSellerReport(standNumber)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export PDF impossible.')
+    } finally {
+      setReportLoading(false)
+    }
+  }
+
   if (!standNumber) return (
     <main className="screen"><BackButton onClick={goHome} />
       <p className="eyebrow">Je vends un objet</p><h2>Commencez par votre stand</h2>
@@ -279,6 +291,10 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
             </div>
           </article>
         })}</div>}
+      <section className="seller-report-card">
+        <div><span className="eyebrow">Fin de journée</span><h3>Mon bilan vendeur</h3><p>Ventes, chiffre d’affaires déclaré, taux de vente, vues et récapitulatif des objets vendus.</p></div>
+        <button className="secondary" disabled={reportLoading} type="button" onClick={() => void exportSellerReport()}>{reportLoading ? 'Création du PDF…' : '↓ Clôturer ma journée · PDF'}</button>
+      </section>
       <button className="secondary" type="button" onClick={openMarket}>Voir le marché BrocAI</button>
     </main>
   )

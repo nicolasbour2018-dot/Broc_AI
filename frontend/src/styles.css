@@ -63,6 +63,12 @@ input, textarea, select { width: 100%; border: 1px solid #d6d3c9; border-radius:
 .secondary.compact { width: auto; min-height: 42px; margin-top: 0; }
 .stand-summary { display: flex; justify-content: space-between; align-items: center; padding: 13px 14px; margin: 4px 0 16px; border-radius: 14px; background: #f2efe7; color: #6a6e63; }
 .stand-summary strong { color: #292c26; }
+.seller-report-card { display: grid; gap: 12px; margin: 22px 0 14px; padding: 16px; border: 1px solid #ded9ce; border-radius: 16px; background: #f7f4ec; }
+.seller-report-card > div { display: grid; gap: 4px; }
+.seller-report-card .eyebrow { margin: 0; color: #9a5b3c; }
+.seller-report-card h3 { margin: 0; font-size: 1.18rem; }
+.seller-report-card p { margin: 0; color: #696d62; line-height: 1.45; }
+.seller-report-card .secondary { margin-top: 2px; }
 @media (max-width: 520px) {
   .seller-section-title { align-items: flex-start; flex-direction: column; gap: 4px; }
   .seller-listing { grid-template-columns: 96px 1fr; min-height: 132px; }
