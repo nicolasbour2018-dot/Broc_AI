@@ -35,7 +35,7 @@ Ces maquettes très grossières couvrent le périmètre de l’étape 0 du MVP. 
 
 ### Accueil
 
-L’accueil contient exactement les trois entrées de parcours `Je vends`, `Je cherche` et `J’analyse`. Chaque carte est une cible complète ; il n’y a pas de quatrième entrée ou action concurrente.
+L’accueil présente les parcours `Je vends`, `Je recherche`, `J’analyse` et `FunLab` dans quatre cartes, puis les annonces du stand mémorisé. Chaque carte est une cible complète ; le bouton du stand et l’accès aux annonces restent visibles comme actions secondaires.
 
 ### Vendre
 

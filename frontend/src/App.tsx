@@ -48,47 +48,19 @@ function queueMessage(progress: AiJobProgress | null, action = 'Analyse'): strin
   return `${action} terminée`
 }
 
-function HomeIllustration({ kind }: { kind: 'seller' | 'market' | 'assistant' | 'fun' }) {
-  if (kind === 'seller') return (
-    <svg className="journey-illustration seller-illustration" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
-      <path d="M30 109c14-19 25-8 34-26s21-17 29-2 13 10 20-1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".35" />
-      <path d="M44 119c8-8 13-15 17-25M72 99l-4-14m24 1 4-15m6 31 12-10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity=".28" />
-      <path d="M111 58h42l8 50h-58z" fill="currentColor" opacity=".09" stroke="currentColor" strokeWidth="2" />
-      <path d="M107 59h50v7h-50zm4 51h42v5h-42zm17 6v18m-9 0h18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".5" />
-      <path d="M126 139h12l7 8h-26z" fill="currentColor" opacity=".22" stroke="currentColor" strokeWidth="2" />
-      <path d="m133 128 3 5-6 3" fill="none" stroke="currentColor" strokeWidth="1.5" opacity=".4" />
-    </svg>
-  )
+const HOME_ILLUSTRATIONS = {
+  seller: '/images/home/lamp.webp',
+  market: '/images/home/chair.webp',
+  assistant: '/images/home/vase.webp',
+  fun: '/images/home/frame.webp'
+} as const
 
-  if (kind === 'market') return (
-    <svg className="journey-illustration market-illustration" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
-      <path d="M89 27c-18 0-32 14-32 32 0 8 3 16 9 22l-9 27h64l-9-27c6-6 9-14 9-22 0-18-14-32-32-32z" fill="currentColor" opacity=".08" stroke="currentColor" strokeWidth="2" />
-      <path d="M73 59c0-9 7-16 16-16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".5" />
-      <path d="M61 104h56m-49 0-5 10v6h52v-6l-5-10m-47 16-4 42m52-42 4 42m-39-42v42m23-42v42M61 142h56" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity=".48" />
-      <path d="M56 120h66" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" opacity=".18" />
-      <path d="M139 48h13m-7-7v14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".35" />
-    </svg>
-  )
+function HomeIllustration({ kind }: { kind: keyof typeof HOME_ILLUSTRATIONS }) {
+  return <img className={`journey-illustration ${kind}-illustration`} src={HOME_ILLUSTRATIONS[kind]} alt="" aria-hidden="true" />
+}
 
-  if (kind === 'assistant') return (
-    <svg className="journey-illustration assistant-illustration" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
-      <path d="M88 76c-10 5-20 1-25-7-6 10 0 22 12 23 11 1 18-7 13-16zm26-10c-9 8-19 7-27 0-2 12 7 21 19 18 10-3 14-13 8-18zm-41 31c-5 11 0 21 11 22 11 1 18-6 15-16-9 4-19 1-26-6zm34 3c3 11 12 16 22 10 10-6 10-17 3-23-5 9-14 13-25 13z" fill="currentColor" opacity=".12" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M94 73c-2 20 1 42 9 63m-12-41-18-12m28 13 17-14m-21 31-20 12m24-9 18 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".42" />
-      <path d="M81 130h40l-5 8H86zm8 10h24v8H89zm3 10h18v7H92z" fill="currentColor" opacity=".09" stroke="currentColor" strokeWidth="1.5" />
-      <path d="m137 39 3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="currentColor" opacity=".3" />
-    </svg>
-  )
-
-  return (
-    <svg className="journey-illustration fun-illustration" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
-      <path d="M47 45h86v101H47z" fill="currentColor" opacity=".07" stroke="currentColor" strokeWidth="3" />
-      <path d="M57 55h66v81H57z" fill="none" stroke="currentColor" strokeWidth="2" opacity=".42" />
-      <path d="M40 40h100v111H40z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 5" opacity=".28" />
-      <path d="M45 61c8 0 8-10 16-10m75 0c0 8 9 8 9 16m-97 66c8 0 8 10 16 10m75 0c0-8 9-8 9-16" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity=".5" />
-      <path d="m34 31 2 6 6 2-6 2-2 6-2-6-6-2 6-2zm111 78 2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="currentColor" opacity=".38" />
-      <path d="m79 86 4 9 10 1-7 7 2 10-9-5-9 5 2-10-7-7 10-1z" fill="currentColor" opacity=".48" />
-    </svg>
-  )
+function HomeChevron() {
+  return <svg className="home-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
 
 function Home({ navigate }: { navigate: (view: View) => void }) {
@@ -121,7 +93,7 @@ function Home({ navigate }: { navigate: (view: View) => void }) {
     <main className="screen home">
       <header className="home-hero home-header">
         <div className="brand-lockup" aria-label="BrocAI, la brocante plus intelligente">
-          <strong><span>Broc</span><span>AI</span><i aria-hidden="true">✦</i></strong>
+          <strong><span>Broc</span><span>AI</span><svg className="brand-sparkle" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><path d="M18 0c2.5 10 6 13.5 18 18-12 4.5-15.5 8-18 18C15.5 26 12 22.5 0 18 12 13.5 15.5 10 18 0Z" fill="currentColor" /><path d="M7 1c1.1 4.4 2.6 5.9 7 8-4.4 1.6-5.9 2.9-7 7-1.1-4.1-2.6-5.4-7-7 4.4-2.1 5.9-3.6 7-8Z" fill="currentColor" transform="translate(21 20) scale(.65)" /></svg></strong>
           <small>La brocante, plus intelligente</small>
         </div>
         <button className="stand-entry" type="button" onClick={openSeller} aria-label={rememberedStand ? `Ouvrir le stand ${rememberedStand}` : 'Ouvrir mon stand'}>
@@ -135,25 +107,25 @@ function Home({ navigate }: { navigate: (view: View) => void }) {
           <button className="journey-card journey-seller" type="button" onClick={openSeller}>
             <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M12 4h12l5 5v12L17 31 2 16z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round"/><circle cx="21" cy="10" r="1.8" fill="currentColor"/></svg></span>
             <span className="journey-copy"><strong>Je vends</strong><small>Déposer une annonce et estimer un prix</small></span>
-            <span className="journey-arrow" aria-hidden="true">›</span>
+            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
             <HomeIllustration kind="seller" />
           </button>
           <button className="journey-card journey-market" type="button" onClick={() => navigate('market')}>
             <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><circle cx="13.5" cy="13.5" r="9.5" fill="none" stroke="currentColor" strokeWidth="2.6"/><path d="m21 21 7 7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"/></svg></span>
-            <span className="journey-copy"><strong>Je recherche</strong><small>Voir les bonnes affaires autour de vous</small></span>
-            <span className="journey-arrow" aria-hidden="true">›</span>
+            <span className="journey-copy"><strong>Je recherche</strong><small>Trouver les bonnes affaires autour de vous</small></span>
+            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
             <HomeIllustration kind="market" />
           </button>
           <button className="journey-card journey-assistant" type="button" onClick={() => navigate('assistant')}>
-            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M16 3v26M3 16h26M7 7l18 18m0-18L7 25" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"/></svg></span>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><rect x="5" y="19" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13.5" y="11" width="5" height="17" rx="2.5" fill="currentColor" /><rect x="22" y="4" width="5" height="24" rx="2.5" fill="currentColor" /></svg></span>
             <span className="journey-copy"><strong>J’analyse</strong><small>Comparer, estimer et mieux négocier</small></span>
-            <span className="journey-arrow" aria-hidden="true">›</span>
+            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
             <HomeIllustration kind="assistant" />
           </button>
           <button className="journey-card journey-fun" type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>
             <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M16 2c2.4 8.2 5.8 11.6 14 14-8.2 2.4-11.6 5.8-14 14C13.6 21.8 10.2 18.4 2 16 10.2 13.6 13.6 10.2 16 2z" fill="currentColor"/></svg></span>
             <span className="journey-copy"><strong>FunLab</strong><small>Créer des visuels fun à partir de vos photos</small></span>
-            <span className="journey-arrow" aria-hidden="true">›</span>
+            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
             <HomeIllustration kind="fun" />
           </button>
         </div>
@@ -161,26 +133,26 @@ function Home({ navigate }: { navigate: (view: View) => void }) {
 
       <section className="home-listings" aria-labelledby="home-listings-title" aria-live="polite">
         <div className="home-listings-heading">
-          <div><span className="home-listings-icon" aria-hidden="true">▤</span><h2 id="home-listings-title">Mes annonces</h2></div>
-          <button type="button" onClick={openSeller} aria-label="Voir toutes mes annonces">Voir tout <span aria-hidden="true">›</span></button>
+          <div><svg className="home-listings-icon" viewBox="0 0 28 28" aria-hidden="true" focusable="false"><path d="M7 3.5h10l5 5V24H7z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M17 4v5h5M10 14h9M10 18h9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><h2 id="home-listings-title">Mes annonces</h2></div>
+          <button type="button" onClick={openSeller} aria-label="Voir toutes mes annonces">Voir tout <HomeChevron /></button>
         </div>
         {!rememberedStand ? (
-          <button className="home-listings-empty" type="button" onClick={openSeller}>Accédez à votre stand pour retrouver vos annonces <span aria-hidden="true">›</span></button>
+          <button className="home-listings-empty" type="button" onClick={openSeller}>Accédez à votre stand pour retrouver vos annonces <HomeChevron /></button>
         ) : loadingListings ? (
           <p className="home-listings-state">Chargement de vos annonces…</p>
         ) : listingsError ? (
           <div className="home-listings-error"><span>{listingsError}</span><button type="button" onClick={() => void loadSellerItems(rememberedStand)}>Réessayer</button></div>
         ) : sellerItems.length === 0 ? (
-          <button className="home-listings-empty" type="button" onClick={openSeller}>Aucune annonce pour le moment. Ajoutez votre premier objet <span aria-hidden="true">›</span></button>
+          <button className="home-listings-empty" type="button" onClick={openSeller}>Aucune annonce pour le moment. Ajoutez votre premier objet <HomeChevron /></button>
         ) : (
           <div className="home-listing-list">
             {sellerItems.slice(0, 2).map(item => {
               const sold = item.sold_at !== null
               return <button className="home-listing-row" key={item.id} type="button" onClick={openSeller} aria-label={`Ouvrir ${item.title}, ${item.price_eur} euros, ${sold ? 'vendu' : 'en ligne'}`}>
                 <img src={item.image_url} alt="" loading="lazy" />
-                <span className="home-listing-copy"><strong>{item.title}</strong><b>{item.price_eur} €</b><span className="home-listing-stats"><span aria-hidden="true">◎</span> Stand {item.stand_number}</span></span>
+                <span className="home-listing-copy"><strong>{item.title}</strong><b>{item.price_eur} €</b><span className="home-listing-stats"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" fill="none" stroke="currentColor" strokeWidth="1.6"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg> Stand {item.stand_number}</span></span>
                 <span className={`home-listing-status ${sold ? 'is-sold' : ''}`}>{sold ? 'Vendu' : 'En ligne'}</span>
-                <span className="home-listing-chevron" aria-hidden="true">›</span>
+                <span className="home-listing-chevron" aria-hidden="true"><HomeChevron /></span>
               </button>
             })}
           </div>
