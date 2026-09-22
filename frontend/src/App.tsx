@@ -48,51 +48,151 @@ function queueMessage(progress: AiJobProgress | null, action = 'Analyse'): strin
   return `${action} terminée`
 }
 
+function HomeIllustration({ kind }: { kind: 'seller' | 'market' | 'assistant' | 'fun' }) {
+  if (kind === 'seller') return (
+    <svg className="journey-illustration seller-illustration" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
+      <path d="M30 109c14-19 25-8 34-26s21-17 29-2 13 10 20-1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".35" />
+      <path d="M44 119c8-8 13-15 17-25M72 99l-4-14m24 1 4-15m6 31 12-10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity=".28" />
+      <path d="M111 58h42l8 50h-58z" fill="currentColor" opacity=".09" stroke="currentColor" strokeWidth="2" />
+      <path d="M107 59h50v7h-50zm4 51h42v5h-42zm17 6v18m-9 0h18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".5" />
+      <path d="M126 139h12l7 8h-26z" fill="currentColor" opacity=".22" stroke="currentColor" strokeWidth="2" />
+      <path d="m133 128 3 5-6 3" fill="none" stroke="currentColor" strokeWidth="1.5" opacity=".4" />
+    </svg>
+  )
+
+  if (kind === 'market') return (
+    <svg className="journey-illustration market-illustration" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
+      <path d="M89 27c-18 0-32 14-32 32 0 8 3 16 9 22l-9 27h64l-9-27c6-6 9-14 9-22 0-18-14-32-32-32z" fill="currentColor" opacity=".08" stroke="currentColor" strokeWidth="2" />
+      <path d="M73 59c0-9 7-16 16-16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".5" />
+      <path d="M61 104h56m-49 0-5 10v6h52v-6l-5-10m-47 16-4 42m52-42 4 42m-39-42v42m23-42v42M61 142h56" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity=".48" />
+      <path d="M56 120h66" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" opacity=".18" />
+      <path d="M139 48h13m-7-7v14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".35" />
+    </svg>
+  )
+
+  if (kind === 'assistant') return (
+    <svg className="journey-illustration assistant-illustration" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
+      <path d="M88 76c-10 5-20 1-25-7-6 10 0 22 12 23 11 1 18-7 13-16zm26-10c-9 8-19 7-27 0-2 12 7 21 19 18 10-3 14-13 8-18zm-41 31c-5 11 0 21 11 22 11 1 18-6 15-16-9 4-19 1-26-6zm34 3c3 11 12 16 22 10 10-6 10-17 3-23-5 9-14 13-25 13z" fill="currentColor" opacity=".12" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M94 73c-2 20 1 42 9 63m-12-41-18-12m28 13 17-14m-21 31-20 12m24-9 18 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" opacity=".42" />
+      <path d="M81 130h40l-5 8H86zm8 10h24v8H89zm3 10h18v7H92z" fill="currentColor" opacity=".09" stroke="currentColor" strokeWidth="1.5" />
+      <path d="m137 39 3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="currentColor" opacity=".3" />
+    </svg>
+  )
+
+  return (
+    <svg className="journey-illustration fun-illustration" viewBox="0 0 180 180" aria-hidden="true" focusable="false">
+      <path d="M47 45h86v101H47z" fill="currentColor" opacity=".07" stroke="currentColor" strokeWidth="3" />
+      <path d="M57 55h66v81H57z" fill="none" stroke="currentColor" strokeWidth="2" opacity=".42" />
+      <path d="M40 40h100v111H40z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 5" opacity=".28" />
+      <path d="M45 61c8 0 8-10 16-10m75 0c0 8 9 8 9 16m-97 66c8 0 8 10 16 10m75 0c0-8 9-8 9-16" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity=".5" />
+      <path d="m34 31 2 6 6 2-6 2-2 6-2-6-6-2 6-2zm111 78 2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="currentColor" opacity=".38" />
+      <path d="m79 86 4 9 10 1-7 7 2 10-9-5-9 5 2-10-7-7 10-1z" fill="currentColor" opacity=".48" />
+    </svg>
+  )
+}
+
 function Home({ navigate }: { navigate: (view: View) => void }) {
+  const [rememberedStand, setRememberedStand] = useState(() => localStorage.getItem(SELLER_STAND_KEY)?.trim() || '')
+  const [sellerItems, setSellerItems] = useState<Listing[]>([])
+  const [loadingListings, setLoadingListings] = useState(false)
+  const [listingsError, setListingsError] = useState('')
+
+  async function loadSellerItems(stand: string) {
+    setLoadingListings(true)
+    setListingsError('')
+    try {
+      setSellerItems(await fetchSellerListings(stand))
+    } catch (err) {
+      setListingsError(err instanceof Error ? err.message : 'Impossible de charger vos annonces.')
+    } finally {
+      setLoadingListings(false)
+    }
+  }
+
+  useEffect(() => {
+    if (rememberedStand) void loadSellerItems(rememberedStand)
+  }, [rememberedStand])
+
+  function openSeller() {
+    navigate('seller')
+  }
+
   return (
     <main className="screen home">
-      <header className="home-hero">
-        <div className="brand-lockup">
-          <div><strong>BrocAI</strong><small>by Gaia Vector Studio</small></div>
+      <header className="home-hero home-header">
+        <div className="brand-lockup" aria-label="BrocAI, la brocante plus intelligente">
+          <strong><span>Broc</span><span>AI</span><i aria-hidden="true">✦</i></strong>
+          <small>La brocante, plus intelligente</small>
         </div>
-        <p className="eyebrow">Brocante Saint‑Fiacre · Épernon</p>
-        <h1>La brocante,<br /><span>plus simple.</span></h1>
-        <p className="lead">Vendez, trouvez ou analysez un objet en quelques gestes, directement depuis votre téléphone.</p>
+        <button className="stand-entry" type="button" onClick={openSeller} aria-label={rememberedStand ? `Ouvrir le stand ${rememberedStand}` : 'Ouvrir mon stand'}>
+          <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 13h22v15H5zM3 12l3-8h20l3 8c0 2-2 3-4 2-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 0-4-2z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M12 19h8v9h-8z" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg>
+          <span>{rememberedStand ? `Stand ${rememberedStand}` : 'Mon stand'}</span>
+        </button>
       </header>
 
-      <section className="journey-section" aria-labelledby="journey-title">
-        <div className="journey-heading">
-          <p className="section-kicker">Que souhaitez-vous faire ?</p>
-          <h2 id="journey-title">Choisissez votre parcours</h2>
-        </div>
+      <section className="journey-section" aria-label="Parcours BrocAI">
         <div className="journey-grid">
-          <button className="journey-card journey-seller" onClick={() => navigate('seller')}>
-            <span className="journey-icon" aria-hidden="true">＋</span>
-            <span className="journey-copy"><strong>Je vends un objet</strong><small>Photo → estimation assistée → annonce publiée sur le marché.</small><span className="journey-cta">Ouvrir mon stand →</span></span>
+          <button className="journey-card journey-seller" type="button" onClick={openSeller}>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M12 4h12l5 5v12L17 31 2 16z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round"/><circle cx="21" cy="10" r="1.8" fill="currentColor"/></svg></span>
+            <span className="journey-copy"><strong>Je vends</strong><small>Déposer une annonce et estimer un prix</small></span>
+            <span className="journey-arrow" aria-hidden="true">›</span>
+            <HomeIllustration kind="seller" />
           </button>
-          <button className="journey-card journey-market" onClick={() => navigate('market')}>
-            <span className="journey-icon" aria-hidden="true">⌕</span>
-            <span className="journey-copy"><strong>Je cherche un objet</strong><small>Explorez les objets disponibles et retrouvez facilement leur stand.</small><span className="journey-cta">Explorer le marché →</span></span>
+          <button className="journey-card journey-market" type="button" onClick={() => navigate('market')}>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><circle cx="13.5" cy="13.5" r="9.5" fill="none" stroke="currentColor" strokeWidth="2.6"/><path d="m21 21 7 7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"/></svg></span>
+            <span className="journey-copy"><strong>Je recherche</strong><small>Voir les bonnes affaires autour de vous</small></span>
+            <span className="journey-arrow" aria-hidden="true">›</span>
+            <HomeIllustration kind="market" />
           </button>
-          <button className="journey-card journey-assistant" onClick={() => navigate('assistant')}>
-            <span className="journey-icon" aria-hidden="true">✦</span>
-            <span className="journey-copy"><strong>J’analyse un objet</strong><small>Prenez une photo pour l’identifier et obtenir des repères de prix.</small><span className="journey-cta">Analyser une photo →</span></span>
+          <button className="journey-card journey-assistant" type="button" onClick={() => navigate('assistant')}>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M16 3v26M3 16h26M7 7l18 18m0-18L7 25" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round"/></svg></span>
+            <span className="journey-copy"><strong>J’analyse</strong><small>Comparer, estimer et mieux négocier</small></span>
+            <span className="journey-arrow" aria-hidden="true">›</span>
+            <HomeIllustration kind="assistant" />
+          </button>
+          <button className="journey-card journey-fun" type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M16 2c2.4 8.2 5.8 11.6 14 14-8.2 2.4-11.6 5.8-14 14C13.6 21.8 10.2 18.4 2 16 10.2 13.6 13.6 10.2 16 2z" fill="currentColor"/></svg></span>
+            <span className="journey-copy"><strong>FunLab</strong><small>Créer des visuels fun à partir de vos photos</small></span>
+            <span className="journey-arrow" aria-hidden="true">›</span>
+            <HomeIllustration kind="fun" />
           </button>
         </div>
       </section>
 
-      <aside className="fun-entry" aria-label="Expérience ludique BrocAI">
-        <div><span className="fun-entry-badge">Bonus</span><strong>Envie de jouer avec un objet ?</strong><small>FunLab transforme un objet en personnage, légende ou compagnon d’aventure.</small></div>
-        <button type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>Découvrir FunLab ✺</button>
-      </aside>
+      <section className="home-listings" aria-labelledby="home-listings-title" aria-live="polite">
+        <div className="home-listings-heading">
+          <div><span className="home-listings-icon" aria-hidden="true">▤</span><h2 id="home-listings-title">Mes annonces</h2></div>
+          <button type="button" onClick={openSeller} aria-label="Voir toutes mes annonces">Voir tout <span aria-hidden="true">›</span></button>
+        </div>
+        {!rememberedStand ? (
+          <button className="home-listings-empty" type="button" onClick={openSeller}>Accédez à votre stand pour retrouver vos annonces <span aria-hidden="true">›</span></button>
+        ) : loadingListings ? (
+          <p className="home-listings-state">Chargement de vos annonces…</p>
+        ) : listingsError ? (
+          <div className="home-listings-error"><span>{listingsError}</span><button type="button" onClick={() => void loadSellerItems(rememberedStand)}>Réessayer</button></div>
+        ) : sellerItems.length === 0 ? (
+          <button className="home-listings-empty" type="button" onClick={openSeller}>Aucune annonce pour le moment. Ajoutez votre premier objet <span aria-hidden="true">›</span></button>
+        ) : (
+          <div className="home-listing-list">
+            {sellerItems.slice(0, 2).map(item => {
+              const sold = item.sold_at !== null
+              return <button className="home-listing-row" key={item.id} type="button" onClick={openSeller} aria-label={`Ouvrir ${item.title}, ${item.price_eur} euros, ${sold ? 'vendu' : 'en ligne'}`}>
+                <img src={item.image_url} alt="" loading="lazy" />
+                <span className="home-listing-copy"><strong>{item.title}</strong><b>{item.price_eur} €</b><span className="home-listing-stats"><span aria-hidden="true">◎</span> Stand {item.stand_number}</span></span>
+                <span className={`home-listing-status ${sold ? 'is-sold' : ''}`}>{sold ? 'Vendu' : 'En ligne'}</span>
+                <span className="home-listing-chevron" aria-hidden="true">›</span>
+              </button>
+            })}
+          </div>
+        )}
+      </section>
     </main>
   )
 }
 
 function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => void }) {
-  const rememberedStand = localStorage.getItem(SELLER_STAND_KEY) || ''
-  const [standInput, setStandInput] = useState(rememberedStand)
-  const [standNumber, setStandNumber] = useState('')
+  const [standInput, setStandInput] = useState(() => localStorage.getItem(SELLER_STAND_KEY) || '')
+  const [standNumber, setStandNumber] = useState(() => localStorage.getItem(SELLER_STAND_KEY) || '')
   const [sellerMode, setSellerMode] = useState<SellerMode>('dashboard')
   const [sellerItems, setSellerItems] = useState<Listing[]>([])
   const [analysis, setAnalysis] = useState<SellerAnalysis | null>(null)
@@ -117,6 +217,10 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     }
   }
 
+  useEffect(() => {
+    if (standNumber) void loadSellerItems(standNumber)
+  }, [standNumber])
+
   async function enterStand(e: FormEvent) {
     e.preventDefault()
     const cleaned = standInput.trim()
@@ -124,7 +228,6 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     localStorage.setItem(SELLER_STAND_KEY, cleaned)
     setStandNumber(cleaned)
     setSellerMode('dashboard')
-    await loadSellerItems(cleaned)
   }
 
   function changeStand() {
@@ -657,7 +760,7 @@ export default function App() {
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
     return <Home navigate={setView} />
   }, [view])
-  const showProductFooter = view !== 'admin' && view !== 'showroom'
+  const showProductFooter = view !== 'home' && view !== 'admin' && view !== 'showroom'
 
   return (
     <div className={`app-shell view-${view}`}>
