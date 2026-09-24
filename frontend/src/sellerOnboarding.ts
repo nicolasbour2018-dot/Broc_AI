@@ -20,3 +20,23 @@ export function readSellerOnboarding(): SellerOnboarding | null {
     return null
   }
 }
+
+// Storage can be unavailable (private mode, quota): the seller keeps working in memory, only the
+// home shortcut is lost.
+export function saveSellerOnboarding(stand: string, alias: string): SellerOnboarding {
+  const value: SellerOnboarding = { stand: stand.trim(), alias: alias.trim(), confirmedAt: new Date().toISOString() }
+  try {
+    localStorage.setItem(SELLER_ONBOARDING_KEY, JSON.stringify(value))
+  } catch {
+    // ignore
+  }
+  return value
+}
+
+export function clearSellerOnboarding(): void {
+  try {
+    localStorage.removeItem(SELLER_ONBOARDING_KEY)
+  } catch {
+    // ignore
+  }
+}
