@@ -712,6 +712,19 @@ export default function App() {
       : window.location.pathname === '/showroom' ? 'showroom' : window.location.pathname === '/fun' ? 'funlab' : 'home'
   )
   const previousView = useRef<View | null>(null)
+  const shellRef = useRef<HTMLDivElement>(null)
+
+  // Mirror the view background onto <html> and the browser chrome so the legacy beige base
+  // never shows through overscroll or safe areas. Views without their own background are left alone.
+  useEffect(() => {
+    const root = document.documentElement
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    const background = shellRef.current ? getComputedStyle(shellRef.current).backgroundColor : ''
+    const hasOwnBackground = background !== '' && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)'
+    root.style.backgroundColor = hasOwnBackground ? background : ''
+    document.body.style.background = hasOwnBackground ? background : ''
+    if (meta) meta.content = hasOwnBackground ? background : '#ffffff'
+  }, [view])
 
   useEffect(() => {
     if (view === 'admin') return
@@ -735,7 +748,7 @@ export default function App() {
   const showProductFooter = view !== 'home' && view !== 'admin' && view !== 'showroom'
 
   return (
-    <div className={`app-shell view-${view}`}>
+    <div className={`app-shell view-${view}`} ref={shellRef}>
       {content}
       {showProductFooter && (
         <footer className="product-footer">

@@ -198,6 +198,14 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
   --broc-assistant: #c77d62;
   --broc-fun: #7866a4;
   --broc-focus: #4b78b6;
+  /* Darker accent variants for small text: AA (≥ 4.5:1) on the view backgrounds and tints. */
+  --broc-seller-text: #35594f;
+  --broc-market-text: #3a649c;
+  --broc-assistant-text: #9a5238;
+  --broc-ink-soft: #4e5a70;
+  --broc-primary: #263653;
+  --broc-surface-soft: #f4f6f9;
+  --broc-line-soft: #e6e9ef;
   --font-display: "Fraunces", Georgia, serif;
   --font-body: "Source Sans 3", Inter, system-ui, sans-serif;
 }
@@ -483,4 +491,65 @@ textarea { min-height: 108px; resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   .journey-card { transition: none; }
   .journey-card:hover { transform: none; }
+}
+
+/* === Step 11 — journey screens aligned with the home visual direction (visual only, no layout change) === */
+.view-seller { --view-text: var(--broc-seller-text); --view-tint: #f0f5f1; }
+.view-market { --view-text: var(--broc-market-text); --view-tint: #eef5fc; }
+.view-assistant { --view-text: var(--broc-assistant-text); --view-tint: #fcf2ec; }
+
+/* Flat page like the home: no floating card, no warm shadow. */
+:is(.view-seller, .view-market, .view-assistant) .screen { border: 0; background: transparent; box-shadow: none; }
+:is(.view-seller, .view-market, .view-assistant) .screen h1,
+:is(.view-seller, .view-market, .view-assistant) .screen h2 { font-weight: 500; letter-spacing: -.02em; line-height: 1.04; }
+:is(.view-seller, .view-market, .view-assistant) .screen h3,
+:is(.view-seller, .view-market, .view-assistant) .screen h4 { font-weight: 600; letter-spacing: -.01em; }
+:is(.view-seller, .view-market, .view-assistant) .screen > .eyebrow,
+:is(.view-seller, .view-market, .view-assistant) .eyebrow { color: var(--view-text); }
+:is(.view-seller, .view-market, .view-assistant) .back { color: var(--broc-ink-soft); font-weight: 600; }
+:is(.view-seller, .view-market, .view-assistant) .screen-nav-brand { color: var(--broc-ink); font-family: var(--font-display); font-size: 1.05rem; font-weight: 500; letter-spacing: -.02em; }
+
+/* Text colours: the legacy olive greys become the navy-grey scale. */
+:is(.view-seller, .view-market, .view-assistant) :is(.lead, .muted, .form-stack small, .seller-access-note, .market-toolbar, .category-label, .category-filter, .seller-section-title span, .seller-listing-body p, .assistant-meta, .assistant-facts span, .wish-grid button span, .assistant-answers article > span, .text-action, .market-loading, .fun-line) { color: var(--broc-muted); }
+:is(.view-seller, .view-market, .view-assistant) :is(.photo-drop small, .market-description, .assistant-answers p, .seller-report-card p, .analysis-meta, .empty) { color: var(--broc-ink-soft); }
+:is(.view-seller, .view-market, .view-assistant) :is(.stand-summary strong, .analysis-meta strong, .empty strong, .category-filter select) { color: var(--broc-ink); }
+
+/* Actions */
+:is(.view-seller, .view-market, .view-assistant) :is(.primary, .sold-button, .search button) { background: var(--broc-primary); box-shadow: 0 6px 16px rgba(38, 54, 83, .14); }
+:is(.view-seller, .view-market, .view-assistant) .pill-sold { background: #eeeef0; color: #5d6474; }
+
+/* Fields */
+:is(.view-seller, .view-market, .view-assistant) :is(input, textarea, select) { border-color: #dfe4ec; border-radius: 14px; background: #fff; color: var(--broc-ink); }
+
+/* Surfaces: beige panels become the journey tint or a neutral soft surface. */
+:is(.view-seller, .view-market, .view-assistant) .photo-drop { border-color: color-mix(in srgb, var(--broc-focus) 38%, white); background: var(--view-tint); }
+:is(.view-seller, .view-market, .view-assistant) .photo-drop > span { color: var(--view-text); }
+:is(.view-seller, .view-market, .view-assistant) :is(.stand-summary, .analysis-meta, .assistant-facts > div, .assistant-answers article, .seller-report-card) { border-color: var(--broc-line-soft); background: var(--broc-surface-soft); }
+:is(.view-seller, .view-market, .view-assistant) :is(.preview-photo, .detail-photo, .assistant-photo-preview, .listing-card img, .seller-listing > img) { background: #f1f0ed; }
+:is(.view-seller, .view-market, .view-assistant) .notice { background: var(--view-tint); color: var(--broc-ink-soft); }
+:is(.view-seller, .view-market, .view-assistant) .pill { background: var(--view-tint); color: var(--view-text); }
+:is(.view-seller, .view-market, .view-assistant) .success-mark { background: var(--view-tint); color: var(--view-text); }
+:is(.view-seller, .view-market, .view-assistant) .seller-report-card .eyebrow { color: var(--view-text); }
+:is(.view-seller, .view-market, .view-assistant) .seller-listing.is-sold { background: #f5f6f8; }
+:is(.view-seller, .view-market, .view-assistant) .assistant-wishes { border-top-color: var(--broc-line-soft); }
+
+/* Cards */
+:is(.view-seller, .view-market, .view-assistant) :is(.listing-card, .seller-listing, .wish-grid button) { border-color: var(--broc-line-soft); border-radius: 20px; background: #fff; }
+:is(.view-seller, .view-market, .view-assistant) .listing-card:hover { border-color: #d3dae5; box-shadow: 0 9px 24px rgba(39, 55, 83, .07); }
+:is(.view-seller, .view-market, .view-assistant) .listing-card:focus-visible { outline-color: color-mix(in srgb, var(--broc-focus) 50%, transparent); }
+:is(.view-seller, .view-market, .view-assistant) .listing-card :is(h3, strong) { font-family: var(--font-display); font-weight: 500; }
+:is(.view-seller, .view-market, .view-assistant) :is(.price-row > strong, .detail-price) { font-family: var(--font-display); font-weight: 500; letter-spacing: -.02em; }
+
+/* Assistant: the counter follows the journey accent (terracotta), not the former violet. */
+.view-assistant .wish-counter { background: var(--broc-assistant-text); }
+.view-assistant :is(.assistant-facts > div, .assistant-answers article) { background: var(--view-tint); }
+
+/* Loading */
+:is(.view-seller, .view-market, .view-assistant) .market-spinner { border-color: #dfe4ec; border-top-color: var(--view-text); }
+
+.product-footer { color: var(--broc-muted); }
+.product-footer strong { color: var(--broc-ink-soft); font-family: var(--font-display); font-weight: 500; }
+
+@media (max-width: 520px) {
+  :is(.view-seller, .view-market, .view-assistant) .screen { border-radius: 0; }
 }
