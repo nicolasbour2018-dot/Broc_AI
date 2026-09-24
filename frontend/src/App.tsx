@@ -29,6 +29,16 @@ const CONFIDENCE_LABELS: Record<SellerAnalysis['confidence'], string> = {
   high: 'forte'
 }
 
+// French display price: "8 €" for whole euros, "8,50 €" otherwise (API sends decimal strings like "8.00").
+const PRICE_FORMAT_WHOLE = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+const PRICE_FORMAT_CENTS = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })
+
+function formatPrice(value: string | number): string {
+  const amount = typeof value === 'number' ? value : Number(String(value).replace(',', '.'))
+  if (!Number.isFinite(amount) || String(value).trim() === '') return `${value} €`
+  return (Number.isInteger(amount) ? PRICE_FORMAT_WHOLE : PRICE_FORMAT_CENTS).format(amount)
+}
+
 function BackButton({ onClick }: { onClick: () => void }) {
   return (
     <div className="screen-nav">
@@ -48,51 +58,123 @@ function queueMessage(progress: AiJobProgress | null, action = 'Analyse'): strin
   return `${action} terminée`
 }
 
+const HOME_ILLUSTRATIONS = {
+  seller: '/images/home/lamp.webp',
+  market: '/images/home/chair.webp',
+  assistant: '/images/home/vase.webp',
+  fun: '/images/home/frame.webp'
+} as const
+
+function HomeIllustration({ kind }: { kind: keyof typeof HOME_ILLUSTRATIONS }) {
+  return <img className={`journey-illustration ${kind}-illustration`} src={HOME_ILLUSTRATIONS[kind]} alt="" aria-hidden="true" />
+}
+
+function HomeChevron() {
+  return <svg className="home-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+}
+
 function Home({ navigate }: { navigate: (view: View) => void }) {
+  const [rememberedStand, setRememberedStand] = useState(() => localStorage.getItem(SELLER_STAND_KEY)?.trim() || '')
+  const [sellerItems, setSellerItems] = useState<Listing[]>([])
+  const [loadingListings, setLoadingListings] = useState(false)
+  const [listingsError, setListingsError] = useState('')
+
+  async function loadSellerItems(stand: string) {
+    setLoadingListings(true)
+    setListingsError('')
+    try {
+      setSellerItems(await fetchSellerListings(stand))
+    } catch (err) {
+      setListingsError(err instanceof Error ? err.message : 'Impossible de charger vos annonces.')
+    } finally {
+      setLoadingListings(false)
+    }
+  }
+
+  useEffect(() => {
+    if (rememberedStand) void loadSellerItems(rememberedStand)
+  }, [rememberedStand])
+
+  function openSeller() {
+    navigate('seller')
+  }
+
   return (
     <main className="screen home">
-      <header className="home-hero">
-        <div className="brand-lockup">
-          <div><strong>BrocAI</strong><small>by Gaia Vector Studio</small></div>
+      <header className="home-hero home-header">
+        <div className="brand-lockup" aria-label="BrocAI, la brocante plus intelligente">
+          <strong><span>Broc</span><span>AI</span><svg className="brand-sparkle" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><path d="M18 0c2.5 10 6 13.5 18 18-12 4.5-15.5 8-18 18C15.5 26 12 22.5 0 18 12 13.5 15.5 10 18 0Z" fill="currentColor" /><path d="M7 1c1.1 4.4 2.6 5.9 7 8-4.4 1.6-5.9 2.9-7 7-1.1-4.1-2.6-5.4-7-7 4.4-2.1 5.9-3.6 7-8Z" fill="currentColor" transform="translate(21 20) scale(.65)" /></svg></strong>
+          <small>La brocante, plus intelligente</small>
         </div>
-        <p className="eyebrow">Brocante Saint‑Fiacre · Épernon</p>
-        <h1>La brocante,<br /><span>plus simple.</span></h1>
-        <p className="lead">Vendez, trouvez ou analysez un objet en quelques gestes, directement depuis votre téléphone.</p>
+        <button className="stand-entry" type="button" onClick={openSeller} aria-label={rememberedStand ? `Ouvrir le stand ${rememberedStand}` : 'Ouvrir mon stand'}>
+          <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 13h22v15H5zM3 12l3-8h20l3 8c0 2-2 3-4 2-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 0-4-2z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M12 19h8v9h-8z" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg>
+          <span>{rememberedStand ? `Stand ${rememberedStand}` : 'Mon stand'}</span>
+        </button>
       </header>
 
-      <section className="journey-section" aria-labelledby="journey-title">
-        <div className="journey-heading">
-          <p className="section-kicker">Que souhaitez-vous faire ?</p>
-          <h2 id="journey-title">Choisissez votre parcours</h2>
-        </div>
+      <section className="journey-section" aria-label="Parcours BrocAI">
         <div className="journey-grid">
-          <button className="journey-card journey-seller" onClick={() => navigate('seller')}>
-            <span className="journey-icon" aria-hidden="true">＋</span>
-            <span className="journey-copy"><strong>Je vends un objet</strong><small>Photo → estimation assistée → annonce publiée sur le marché.</small><span className="journey-cta">Ouvrir mon stand →</span></span>
+          <button className="journey-card journey-seller" type="button" onClick={openSeller}>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M12 4h12l5 5v12L17 31 2 16z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round"/><circle cx="21" cy="10" r="1.8" fill="currentColor"/></svg></span>
+            <span className="journey-copy"><strong>Je vends</strong><small>Déposer une annonce et estimer un prix</small></span>
+            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
+            <HomeIllustration kind="seller" />
           </button>
-          <button className="journey-card journey-market" onClick={() => navigate('market')}>
-            <span className="journey-icon" aria-hidden="true">⌕</span>
-            <span className="journey-copy"><strong>Je cherche un objet</strong><small>Explorez les objets disponibles et retrouvez facilement leur stand.</small><span className="journey-cta">Explorer le marché →</span></span>
+          <button className="journey-card journey-market" type="button" onClick={() => navigate('market')}>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><circle cx="13.5" cy="13.5" r="9.5" fill="none" stroke="currentColor" strokeWidth="2.6"/><path d="m21 21 7 7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"/></svg></span>
+            <span className="journey-copy"><strong>Je recherche</strong><small>Trouver les bonnes affaires autour de vous</small></span>
+            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
+            <HomeIllustration kind="market" />
           </button>
-          <button className="journey-card journey-assistant" onClick={() => navigate('assistant')}>
-            <span className="journey-icon" aria-hidden="true">✦</span>
-            <span className="journey-copy"><strong>J’analyse un objet</strong><small>Prenez une photo pour l’identifier et obtenir des repères de prix.</small><span className="journey-cta">Analyser une photo →</span></span>
+          <button className="journey-card journey-assistant" type="button" onClick={() => navigate('assistant')}>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><rect x="5" y="19" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13.5" y="11" width="5" height="17" rx="2.5" fill="currentColor" /><rect x="22" y="4" width="5" height="24" rx="2.5" fill="currentColor" /></svg></span>
+            <span className="journey-copy"><strong>J’analyse</strong><small>Comparer, estimer et mieux négocier</small></span>
+            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
+            <HomeIllustration kind="assistant" />
+          </button>
+          <button className="journey-card journey-fun" type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>
+            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M16 2c2.4 8.2 5.8 11.6 14 14-8.2 2.4-11.6 5.8-14 14C13.6 21.8 10.2 18.4 2 16 10.2 13.6 13.6 10.2 16 2z" fill="currentColor"/></svg></span>
+            <span className="journey-copy"><strong>FunLab</strong><small>Créer des visuels fun à partir de vos photos</small></span>
+            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
+            <HomeIllustration kind="fun" />
           </button>
         </div>
       </section>
 
-      <aside className="fun-entry" aria-label="Expérience ludique BrocAI">
-        <div><span className="fun-entry-badge">Bonus</span><strong>Envie de jouer avec un objet ?</strong><small>FunLab transforme un objet en personnage, légende ou compagnon d’aventure.</small></div>
-        <button type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>Découvrir FunLab ✺</button>
-      </aside>
+      <section className="home-listings" aria-labelledby="home-listings-title" aria-live="polite">
+        <div className="home-listings-heading">
+          <div><svg className="home-listings-icon" viewBox="0 0 28 28" aria-hidden="true" focusable="false"><path d="M7 3.5h10l5 5V24H7z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M17 4v5h5M10 14h9M10 18h9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><h2 id="home-listings-title">Mes annonces</h2></div>
+          <button type="button" onClick={openSeller} aria-label="Voir toutes mes annonces">Voir tout <HomeChevron /></button>
+        </div>
+        {!rememberedStand ? (
+          <button className="home-listings-empty" type="button" onClick={openSeller}>Accédez à votre stand pour retrouver vos annonces <HomeChevron /></button>
+        ) : loadingListings ? (
+          <p className="home-listings-state">Chargement de vos annonces…</p>
+        ) : listingsError ? (
+          <div className="home-listings-error"><span>{listingsError}</span><button type="button" onClick={() => void loadSellerItems(rememberedStand)}>Réessayer</button></div>
+        ) : sellerItems.length === 0 ? (
+          <button className="home-listings-empty" type="button" onClick={openSeller}>Aucune annonce pour le moment. Ajoutez votre premier objet <HomeChevron /></button>
+        ) : (
+          <div className="home-listing-list">
+            {sellerItems.slice(0, 2).map(item => {
+              const sold = item.sold_at !== null
+              return <button className="home-listing-row" key={item.id} type="button" onClick={openSeller} aria-label={`Ouvrir ${item.title}, ${formatPrice(item.price_eur)}, ${sold ? 'vendu' : 'en ligne'}`}>
+                <img src={item.image_url} alt="" loading="lazy" />
+                <span className="home-listing-copy"><strong>{item.title}</strong><b>{formatPrice(item.price_eur)}</b><span className="home-listing-stats"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" fill="none" stroke="currentColor" strokeWidth="1.6"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg> Stand {item.stand_number}</span></span>
+                <span className={`home-listing-status ${sold ? 'is-sold' : ''}`}>{sold ? 'Vendu' : 'En ligne'}</span>
+                <span className="home-listing-chevron" aria-hidden="true"><HomeChevron /></span>
+              </button>
+            })}
+          </div>
+        )}
+      </section>
     </main>
   )
 }
 
 function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => void }) {
-  const rememberedStand = localStorage.getItem(SELLER_STAND_KEY) || ''
-  const [standInput, setStandInput] = useState(rememberedStand)
-  const [standNumber, setStandNumber] = useState('')
+  const [standInput, setStandInput] = useState(() => localStorage.getItem(SELLER_STAND_KEY) || '')
+  const [standNumber, setStandNumber] = useState(() => localStorage.getItem(SELLER_STAND_KEY) || '')
   const [sellerMode, setSellerMode] = useState<SellerMode>('dashboard')
   const [sellerItems, setSellerItems] = useState<Listing[]>([])
   const [analysis, setAnalysis] = useState<SellerAnalysis | null>(null)
@@ -117,6 +199,10 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     }
   }
 
+  useEffect(() => {
+    if (standNumber) void loadSellerItems(standNumber)
+  }, [standNumber])
+
   async function enterStand(e: FormEvent) {
     e.preventDefault()
     const cleaned = standInput.trim()
@@ -124,7 +210,6 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     localStorage.setItem(SELLER_STAND_KEY, cleaned)
     setStandNumber(cleaned)
     setSellerMode('dashboard')
-    await loadSellerItems(cleaned)
   }
 
   function changeStand() {
@@ -264,7 +349,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     <main className="screen"><button className="back" onClick={() => void backToDashboard()}>← Mes annonces</button>
       <div className="success-mark">✓</div><h2>Annonce publiée</h2>
       <p className="muted">Elle est maintenant visible sur le marché BrocAI tant qu’elle n’est pas marquée comme vendue.</p>
-      <article className="listing-card featured"><img src={published.image_url} alt="" /><div><span className="pill">Stand {published.stand_number}</span><h3>{published.title}</h3><strong>{published.price_eur} €</strong>{published.fun_line && <p className="fun-line final-fun-line">✦ {published.fun_line}</p>}</div></article>
+      <article className="listing-card featured"><img src={published.image_url} alt="" /><div><span className="pill">Stand {published.stand_number}</span><h3>{published.title}</h3><strong>{formatPrice(published.price_eur)}</strong>{published.fun_line && <p className="fun-line final-fun-line">✦ {published.fun_line}</p>}</div></article>
       <button className="primary" onClick={() => void backToDashboard()}>Voir mes annonces</button>
       <button className="secondary" onClick={openMarket}>Voir le marché BrocAI</button>
     </main>
@@ -282,7 +367,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
           return <article key={item.id} className={`seller-listing ${sold ? 'is-sold' : ''}`}>
             <img src={item.image_url} alt="" />
             <div className="seller-listing-body">
-              <div className="seller-listing-top"><span className={`pill ${sold ? 'pill-sold' : ''}`}>{sold ? 'Vendu' : 'En vente'}</span><strong>{item.price_eur} €</strong></div>
+              <div className="seller-listing-top"><span className={`pill ${sold ? 'pill-sold' : ''}`}>{sold ? 'Vendu' : 'En vente'}</span><strong>{formatPrice(item.price_eur)}</strong></div>
               <h3>{item.title}</h3><p>{item.description}</p>
               <div className="seller-actions">
                 <button className="secondary compact edit-button" disabled={loading} type="button" onClick={() => startEdit(item)}>Modifier</button>
@@ -320,7 +405,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
   if (preview && analysis) return (
     <main className="screen"><button className="back" onClick={() => setPreview(false)}>← Modifier</button><p className="eyebrow">Aperçu avant publication</p><h2>{draft.title}</h2>
       <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Objet à vendre" /></div>
-      <div className="price-row"><strong>{draft.price_eur} €</strong><span className="pill">Stand {standNumber}</span></div>
+      <div className="price-row"><strong>{formatPrice(draft.price_eur)}</strong><span className="pill">Stand {standNumber}</span></div>
       <p>{draft.description}</p>{draft.fun_line && <p className="fun-line final-fun-line">✦ {draft.fun_line}</p>}{draft.category && <p className="muted">{draft.category}</p>}
       {error && <p className="error">{error}</p>}
       <button className="primary" disabled={loading} onClick={publish}>{loading ? 'Publication…' : 'Publier l’annonce'}</button>
@@ -434,7 +519,7 @@ function Market({ goHome }: { goHome: () => void }) {
             {selected.category && <span className="category-label">{selected.category}</span>}
           </div>
           <h2>{selected.title}</h2>
-          <div className="detail-price">{selected.price_eur} €</div>
+          <div className="detail-price">{formatPrice(selected.price_eur)}</div>
           <p className="market-description">{selected.description}</p>
           {selected.fun_line && <p className="fun-line market-fun-line">✦ {selected.fun_line}</p>}
           {selected.seller_alias && <p className="muted">Vendeur · {selected.seller_alias}</p>}
@@ -482,12 +567,12 @@ function Market({ goHome }: { goHome: () => void }) {
         </div>
       ) : (
         <div className="listing-grid">{items.map(item => (
-          <button key={item.id} type="button" className="listing-card" onClick={() => void openListing(item)} aria-label={`Voir ${item.title}, ${item.price_eur} euros, stand ${item.stand_number}`}>
+          <button key={item.id} type="button" className="listing-card" onClick={() => void openListing(item)} aria-label={`Voir ${item.title}, ${formatPrice(item.price_eur)}, stand ${item.stand_number}`}>
             <img src={item.image_url} alt={item.title} loading="lazy" />
             <div>
               <div className="listing-card-meta"><span className="pill">Stand {item.stand_number}</span>{item.category && <span className="category-label compact-category">{item.category}</span>}</div>
               <h3>{item.title}</h3>
-              <strong>{item.price_eur} €</strong>
+              <strong>{formatPrice(item.price_eur)}</strong>
             </div>
           </button>
         ))}</div>
@@ -583,7 +668,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
   const confidenceLabel = CONFIDENCE_LABELS[analysis.confidence]
   const priceLabel = analysis.price_range_eur
     ? `${analysis.price_range_eur.min}–${analysis.price_range_eur.max} €`
-    : analysis.estimated_price_eur !== null ? `environ ${analysis.estimated_price_eur} €` : 'non estimé'
+    : analysis.estimated_price_eur !== null ? `environ ${formatPrice(analysis.estimated_price_eur)}` : 'non estimé'
 
   return (
     <main className="screen assistant-screen">
@@ -637,6 +722,19 @@ export default function App() {
       : window.location.pathname === '/showroom' ? 'showroom' : window.location.pathname === '/fun' ? 'funlab' : 'home'
   )
   const previousView = useRef<View | null>(null)
+  const shellRef = useRef<HTMLDivElement>(null)
+
+  // Mirror the view background onto <html> and the browser chrome so the legacy beige base
+  // never shows through overscroll or safe areas. Views without their own background are left alone.
+  useEffect(() => {
+    const root = document.documentElement
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    const background = shellRef.current ? getComputedStyle(shellRef.current).backgroundColor : ''
+    const hasOwnBackground = background !== '' && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)'
+    root.style.backgroundColor = hasOwnBackground ? background : ''
+    document.body.style.background = hasOwnBackground ? background : ''
+    if (meta) meta.content = hasOwnBackground ? background : '#ffffff'
+  }, [view])
 
   useEffect(() => {
     if (view === 'admin') return
@@ -657,10 +755,10 @@ export default function App() {
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
     return <Home navigate={setView} />
   }, [view])
-  const showProductFooter = view !== 'admin' && view !== 'showroom'
+  const showProductFooter = view !== 'home' && view !== 'admin' && view !== 'showroom'
 
   return (
-    <div className={`app-shell view-${view}`}>
+    <div className={`app-shell view-${view}`} ref={shellRef}>
       {content}
       {showProductFooter && (
         <footer className="product-footer">

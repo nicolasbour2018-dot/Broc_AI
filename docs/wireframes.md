@@ -35,7 +35,17 @@ Ces maquettes très grossières couvrent le périmètre de l’étape 0 du MVP. 
 
 ### Accueil
 
-L’accueil contient exactement les trois entrées de parcours `Je vends`, `Je cherche` et `J’analyse`. Chaque carte est une cible complète ; il n’y a pas de quatrième entrée ou action concurrente.
+L’accueil présente les parcours `Je vends`, `Je recherche`, `J’analyse` et `FunLab` dans quatre cartes, puis un bloc d’annonces dont le contenu dépend du profil. Chaque carte est une cible complète. La direction visuelle de référence est [maquette_prototype_V2.png](./assets/maquette_prototype_V2.png) ; les éléments de la maquette sans donnée réelle derrière (favoris notamment) ne sont pas affichés.
+
+| | Visiteur | Vendeur ayant confirmé son onboarding |
+| --- | --- | --- |
+| Pastille `Stand N` | absente | visible, ouvre son stand |
+| Bloc d’annonces | `Dernières annonces` : 5 annonces actives les plus récentes | `Mes annonces` : 5 annonces, vues décroissantes puis plus récentes ; actives avant vendues |
+| Toucher une ligne | fiche de l’annonce sur le mini-marché | son stand |
+| Ligne de statistiques | icône boutique et `Stand N` | nombre de vues, `0` compris |
+| `Voir tout` | mini-marché | son stand |
+
+L’onboarding vendeur s’enchaîne ainsi : numéro de stand, pseudo facultatif (prérempli ensuite dans chaque annonce), explication en un écran de trois étapes illustrées, `Valider`, puis confirmation `Stand N` avec `Changer de numéro`. La pastille n’apparaît qu’après cette confirmation. Une action discrète `Changer de stand` dans l’écran vendeur relance l’onboarding après confirmation. Voir la [décision de l’étape 11](./decisions/etape-11-refonte-visuelle.md).
 
 ### Vendre
 
