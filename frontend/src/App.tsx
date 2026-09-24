@@ -29,6 +29,16 @@ const CONFIDENCE_LABELS: Record<SellerAnalysis['confidence'], string> = {
   high: 'forte'
 }
 
+// French display price: "8 €" for whole euros, "8,50 €" otherwise (API sends decimal strings like "8.00").
+const PRICE_FORMAT_WHOLE = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+const PRICE_FORMAT_CENTS = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 })
+
+function formatPrice(value: string | number): string {
+  const amount = typeof value === 'number' ? value : Number(String(value).replace(',', '.'))
+  if (!Number.isFinite(amount) || String(value).trim() === '') return `${value} €`
+  return (Number.isInteger(amount) ? PRICE_FORMAT_WHOLE : PRICE_FORMAT_CENTS).format(amount)
+}
+
 function BackButton({ onClick }: { onClick: () => void }) {
   return (
     <div className="screen-nav">
@@ -148,9 +158,9 @@ function Home({ navigate }: { navigate: (view: View) => void }) {
           <div className="home-listing-list">
             {sellerItems.slice(0, 2).map(item => {
               const sold = item.sold_at !== null
-              return <button className="home-listing-row" key={item.id} type="button" onClick={openSeller} aria-label={`Ouvrir ${item.title}, ${item.price_eur} euros, ${sold ? 'vendu' : 'en ligne'}`}>
+              return <button className="home-listing-row" key={item.id} type="button" onClick={openSeller} aria-label={`Ouvrir ${item.title}, ${formatPrice(item.price_eur)}, ${sold ? 'vendu' : 'en ligne'}`}>
                 <img src={item.image_url} alt="" loading="lazy" />
-                <span className="home-listing-copy"><strong>{item.title}</strong><b>{item.price_eur} €</b><span className="home-listing-stats"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" fill="none" stroke="currentColor" strokeWidth="1.6"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg> Stand {item.stand_number}</span></span>
+                <span className="home-listing-copy"><strong>{item.title}</strong><b>{formatPrice(item.price_eur)}</b><span className="home-listing-stats"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" fill="none" stroke="currentColor" strokeWidth="1.6"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg> Stand {item.stand_number}</span></span>
                 <span className={`home-listing-status ${sold ? 'is-sold' : ''}`}>{sold ? 'Vendu' : 'En ligne'}</span>
                 <span className="home-listing-chevron" aria-hidden="true"><HomeChevron /></span>
               </button>
@@ -339,7 +349,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     <main className="screen"><button className="back" onClick={() => void backToDashboard()}>← Mes annonces</button>
       <div className="success-mark">✓</div><h2>Annonce publiée</h2>
       <p className="muted">Elle est maintenant visible sur le marché BrocAI tant qu’elle n’est pas marquée comme vendue.</p>
-      <article className="listing-card featured"><img src={published.image_url} alt="" /><div><span className="pill">Stand {published.stand_number}</span><h3>{published.title}</h3><strong>{published.price_eur} €</strong>{published.fun_line && <p className="fun-line final-fun-line">✦ {published.fun_line}</p>}</div></article>
+      <article className="listing-card featured"><img src={published.image_url} alt="" /><div><span className="pill">Stand {published.stand_number}</span><h3>{published.title}</h3><strong>{formatPrice(published.price_eur)}</strong>{published.fun_line && <p className="fun-line final-fun-line">✦ {published.fun_line}</p>}</div></article>
       <button className="primary" onClick={() => void backToDashboard()}>Voir mes annonces</button>
       <button className="secondary" onClick={openMarket}>Voir le marché BrocAI</button>
     </main>
@@ -357,7 +367,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
           return <article key={item.id} className={`seller-listing ${sold ? 'is-sold' : ''}`}>
             <img src={item.image_url} alt="" />
             <div className="seller-listing-body">
-              <div className="seller-listing-top"><span className={`pill ${sold ? 'pill-sold' : ''}`}>{sold ? 'Vendu' : 'En vente'}</span><strong>{item.price_eur} €</strong></div>
+              <div className="seller-listing-top"><span className={`pill ${sold ? 'pill-sold' : ''}`}>{sold ? 'Vendu' : 'En vente'}</span><strong>{formatPrice(item.price_eur)}</strong></div>
               <h3>{item.title}</h3><p>{item.description}</p>
               <div className="seller-actions">
                 <button className="secondary compact edit-button" disabled={loading} type="button" onClick={() => startEdit(item)}>Modifier</button>
@@ -395,7 +405,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
   if (preview && analysis) return (
     <main className="screen"><button className="back" onClick={() => setPreview(false)}>← Modifier</button><p className="eyebrow">Aperçu avant publication</p><h2>{draft.title}</h2>
       <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Objet à vendre" /></div>
-      <div className="price-row"><strong>{draft.price_eur} €</strong><span className="pill">Stand {standNumber}</span></div>
+      <div className="price-row"><strong>{formatPrice(draft.price_eur)}</strong><span className="pill">Stand {standNumber}</span></div>
       <p>{draft.description}</p>{draft.fun_line && <p className="fun-line final-fun-line">✦ {draft.fun_line}</p>}{draft.category && <p className="muted">{draft.category}</p>}
       {error && <p className="error">{error}</p>}
       <button className="primary" disabled={loading} onClick={publish}>{loading ? 'Publication…' : 'Publier l’annonce'}</button>
@@ -509,7 +519,7 @@ function Market({ goHome }: { goHome: () => void }) {
             {selected.category && <span className="category-label">{selected.category}</span>}
           </div>
           <h2>{selected.title}</h2>
-          <div className="detail-price">{selected.price_eur} €</div>
+          <div className="detail-price">{formatPrice(selected.price_eur)}</div>
           <p className="market-description">{selected.description}</p>
           {selected.fun_line && <p className="fun-line market-fun-line">✦ {selected.fun_line}</p>}
           {selected.seller_alias && <p className="muted">Vendeur · {selected.seller_alias}</p>}
@@ -557,12 +567,12 @@ function Market({ goHome }: { goHome: () => void }) {
         </div>
       ) : (
         <div className="listing-grid">{items.map(item => (
-          <button key={item.id} type="button" className="listing-card" onClick={() => void openListing(item)} aria-label={`Voir ${item.title}, ${item.price_eur} euros, stand ${item.stand_number}`}>
+          <button key={item.id} type="button" className="listing-card" onClick={() => void openListing(item)} aria-label={`Voir ${item.title}, ${formatPrice(item.price_eur)}, stand ${item.stand_number}`}>
             <img src={item.image_url} alt={item.title} loading="lazy" />
             <div>
               <div className="listing-card-meta"><span className="pill">Stand {item.stand_number}</span>{item.category && <span className="category-label compact-category">{item.category}</span>}</div>
               <h3>{item.title}</h3>
-              <strong>{item.price_eur} €</strong>
+              <strong>{formatPrice(item.price_eur)}</strong>
             </div>
           </button>
         ))}</div>
@@ -658,7 +668,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
   const confidenceLabel = CONFIDENCE_LABELS[analysis.confidence]
   const priceLabel = analysis.price_range_eur
     ? `${analysis.price_range_eur.min}–${analysis.price_range_eur.max} €`
-    : analysis.estimated_price_eur !== null ? `environ ${analysis.estimated_price_eur} €` : 'non estimé'
+    : analysis.estimated_price_eur !== null ? `environ ${formatPrice(analysis.estimated_price_eur)}` : 'non estimé'
 
   return (
     <main className="screen assistant-screen">
