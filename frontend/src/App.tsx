@@ -80,13 +80,30 @@ function HomeStandIcon() {
   return <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 13h22v15H5zM3 12l3-8h20l3 8c0 2-2 3-4 2-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 0-4-2z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M12 19h8v9h-8z" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg>
 }
 
+function HomeViewsIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" fill="none" stroke="currentColor" strokeWidth="1.6"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg>
+}
+
+function formatViews(count: number): string {
+  return `${count} ${count >= 2 ? 'vues' : 'vue'}`
+}
+
+// Seller home order: active listings first, then most viewed, then newest.
+function sortSellerListings(items: Listing[]): Listing[] {
+  return [...items].sort((a, b) =>
+    Number(a.sold_at !== null) - Number(b.sold_at !== null)
+    || (b.view_count ?? 0) - (a.view_count ?? 0)
+    || b.created_at.localeCompare(a.created_at))
+}
+
 function HomeListingRow({ item, onOpen, showStatus }: { item: Listing; onOpen: () => void; showStatus: boolean }) {
   const sold = item.sold_at !== null
-  const label = `Ouvrir ${item.title}, ${formatPrice(item.price_eur)}, stand ${item.stand_number}${showStatus ? `, ${sold ? 'vendu' : 'en ligne'}` : ''}`
+  const views = typeof item.view_count === 'number' ? formatViews(item.view_count) : null
+  const label = `Ouvrir ${item.title}, ${formatPrice(item.price_eur)}, ${views ?? `stand ${item.stand_number}`}${showStatus ? `, ${sold ? 'vendu' : 'en ligne'}` : ''}`
   return (
     <button className={`home-listing-row ${showStatus ? '' : 'no-status'}`} type="button" onClick={onOpen} aria-label={label}>
       <img src={item.image_url} alt="" loading="lazy" />
-      <span className="home-listing-copy"><strong>{item.title}</strong><b>{formatPrice(item.price_eur)}</b><span className="home-listing-stats"><HomeStandIcon /> Stand {item.stand_number}</span></span>
+      <span className="home-listing-copy"><strong>{item.title}</strong><b>{formatPrice(item.price_eur)}</b><span className="home-listing-stats">{views ? <><HomeViewsIcon /> {views}</> : <><HomeStandIcon /> Stand {item.stand_number}</>}</span></span>
       {showStatus && <span className={`home-listing-status ${sold ? 'is-sold' : ''}`}>{sold ? 'Vendu' : 'En ligne'}</span>}
       <span className="home-listing-chevron" aria-hidden="true"><HomeChevron /></span>
     </button>
@@ -105,7 +122,7 @@ function Home({ navigate, openListing }: { navigate: (view: View) => void; openL
     setLoadingListings(true)
     setListingsError('')
     try {
-      setItems(sellerStand ? (await fetchSellerListings(sellerStand)).slice(0, HOME_LISTING_COUNT) : await fetchLatestListings(HOME_LISTING_COUNT))
+      setItems(sellerStand ? sortSellerListings(await fetchSellerListings(sellerStand)).slice(0, HOME_LISTING_COUNT) : await fetchLatestListings(HOME_LISTING_COUNT))
     } catch (err) {
       setListingsError(err instanceof Error ? err.message : 'Impossible de charger les annonces.')
     } finally {

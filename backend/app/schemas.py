@@ -189,6 +189,8 @@ class ListingOut(BaseModel):
     seller_alias: str | None
     created_at: datetime
     sold_at: datetime | None
+    # Only filled for the seller's own listings; public endpoints leave it null.
+    view_count: int | None = None
 
 
 class HealthOut(BaseModel):

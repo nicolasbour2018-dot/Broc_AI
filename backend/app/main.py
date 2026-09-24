@@ -180,7 +180,20 @@ def enqueue_ai_job(
     return ai_job_out(db, job)
 
 
-def listing_out(listing: Listing) -> ListingOut:
+def listing_view_counts(db: Session, listing_ids: list[str]) -> dict[str, int]:
+    """Count `listing_viewed` events per listing in SQL rather than scanning every event."""
+    if not listing_ids:
+        return {}
+    listing_id = Event.properties["listing_id"].as_string()
+    rows = db.execute(
+        select(listing_id, func.count(Event.id))
+        .where(Event.event_name == "listing_viewed", listing_id.in_(listing_ids))
+        .group_by(listing_id)
+    ).all()
+    return {str(key): int(count) for key, count in rows}
+
+
+def listing_out(listing: Listing, view_count: int | None = None) -> ListingOut:
     return ListingOut(
         id=listing.id,
         image_url=f"/media/{listing.image_key}",
@@ -193,6 +206,7 @@ def listing_out(listing: Listing) -> ListingOut:
         seller_alias=listing.seller_alias,
         created_at=listing.created_at,
         sold_at=listing.sold_at,
+        view_count=view_count,
     )
 
 
@@ -351,9 +365,10 @@ def seller_listings(
         .order_by(Listing.sold_at.is_not(None), Listing.created_at.desc())
     )
     rows = list(db.scalars(statement).all())
+    views = listing_view_counts(db, [item.id for item in rows])
     emit_event(db, session_id(x_session_id), "seller_listings_opened", {"stand": stand, "count": len(rows)})
     db.commit()
-    return [listing_out(item) for item in rows]
+    return [listing_out(item, views.get(item.id, 0)) for item in rows]
 
 
 @app.patch("/api/seller/listings/{listing_id}", response_model=ListingOut)
