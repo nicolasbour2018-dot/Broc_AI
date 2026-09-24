@@ -16,6 +16,7 @@ La brocante du 20 septembre 2026 a tourné sur `main` (dernier commit du 20/09).
 - **Dehors** : Showroom et Admin.
 - **Règle** : aucun élément visuel creux. Un élément de la maquette sans donnée réelle derrière (favoris) n’est pas affiché.
 - **Accessibilité** : WCAG AA sur le texte ; les pastilles d’icône suivent la maquette.
+- **Typographie** : Fraunces est conservée pour les titres. Son `J` majuscule, posé sur la ligne de base avec une boule, diffère du `J` descendant de la maquette ; l’écart est accepté (décision du 2026-09-24).
 
 ## Livrables et ordre
 
