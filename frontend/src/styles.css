@@ -556,3 +556,21 @@ textarea { min-height: 108px; resize: vertical; }
 @media (max-width: 520px) {
   :is(.view-seller, .view-market, .view-assistant) .screen { border-radius: 0; }
 }
+
+/* === Step 11 — seller onboarding === */
+.onboarding-guide { display: grid; gap: 12px; margin: 20px 0 8px; padding: 0; list-style: none; }
+.onboarding-guide li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 14px; align-items: center; padding: 14px 16px; border-radius: 22px; background: var(--view-tint, #f0f5f1); }
+.onboarding-guide-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--broc-seller) 52%, white); color: #fff; }
+.onboarding-guide-icon svg { width: 26px; height: 26px; }
+.onboarding-guide li > span:last-child { display: grid; gap: 3px; min-width: 0; }
+.onboarding-guide strong { color: var(--broc-ink); font-family: var(--font-display); font-size: 1.12rem; font-weight: 500; line-height: 1.15; }
+.onboarding-guide small { color: var(--broc-ink-soft); font-size: .92rem; line-height: 1.35; }
+.onboarding-back { display: block; margin: 6px auto 0; }
+.onboarding-confirm { display: grid; gap: 4px; justify-items: center; margin: 20px 0 14px; padding: 22px 16px; border-radius: 22px; background: var(--view-tint, #f0f5f1); text-align: center; }
+.onboarding-confirm span { color: var(--view-text, var(--broc-seller-text)); font-size: .76rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.onboarding-confirm strong { color: var(--broc-ink); font-family: var(--font-display); font-size: clamp(2.2rem, 11vw, 3rem); font-weight: 500; letter-spacing: -.02em; line-height: 1.05; overflow-wrap: anywhere; }
+.onboarding-confirm small { color: var(--broc-ink-soft); font-size: .95rem; }
+.stand-change-confirm { display: grid; gap: 10px; margin: 4px 0 14px; padding: 14px 16px; border: 1px solid var(--broc-line-soft); border-radius: 18px; background: var(--broc-surface-soft); }
+.stand-change-confirm p { margin: 0; color: var(--broc-ink-soft); line-height: 1.4; }
+.stand-change-confirm p strong { color: var(--broc-ink); }
+.stand-change-confirm > div { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }

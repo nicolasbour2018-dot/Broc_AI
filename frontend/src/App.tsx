@@ -4,14 +4,13 @@ import Admin from './Admin'
 import Showroom from './Showroom'
 import FunLab from './FunLab'
 import { DEFAULT_CATEGORY, LISTING_CATEGORIES } from './categories'
-import { readSellerOnboarding } from './sellerOnboarding'
+import { clearSellerOnboarding, readSellerOnboarding, saveSellerOnboarding } from './sellerOnboarding'
+import type { SellerOnboarding } from './sellerOnboarding'
 import type { ListingCategory } from './categories'
 import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 type View = 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom' | 'funlab'
 type SellerMode = 'dashboard' | 'create' | 'edit'
-
-const SELLER_STAND_KEY = 'brocai-seller-stand'
 
 const EMPTY_DRAFT: ListingDraft = {
   image_key: '',
@@ -207,9 +206,109 @@ function Home({ navigate, openListing }: { navigate: (view: View) => void; openL
   )
 }
 
+type OnboardingStep = 'details' | 'guide' | 'confirm'
+
+function trackOnboarding(action: string) {
+  void trackEvent('feature_clicked', { feature: 'seller_onboarding', action })
+}
+
+const ONBOARDING_GUIDE = [
+  {
+    title: 'Photographiez l’objet',
+    text: 'Depuis votre téléphone, directement sur votre stand.',
+    icon: <svg viewBox="0 0 32 32" focusable="false"><path d="M4 11.5A2.5 2.5 0 0 1 6.5 9h3.2l2-3h8.6l2 3h3.2a2.5 2.5 0 0 1 2.5 2.5v13A2.5 2.5 0 0 1 25.5 27h-19A2.5 2.5 0 0 1 4 24.5z" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round"/><circle cx="16" cy="17.5" r="5" fill="none" stroke="currentColor" strokeWidth="2.2"/></svg>
+  },
+  {
+    title: 'BrocAI prépare l’annonce',
+    text: 'Titre, description et prix suggérés : vous gardez la main sur tout.',
+    icon: <svg viewBox="0 0 32 32" focusable="false"><path d="M16 2c2.4 8.2 5.8 11.6 14 14-8.2 2.4-11.6 5.8-14 14C13.6 21.8 10.2 18.4 2 16 10.2 13.6 13.6 10.2 16 2z" fill="currentColor"/></svg>
+  },
+  {
+    title: 'Publiez, puis marquez vendu',
+    text: 'L’objet apparaît sur le marché BrocAI ; un geste suffit quand il part.',
+    icon: <svg viewBox="0 0 32 32" focusable="false"><path d="m6 16.5 6.5 6.5L26 9.5" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  }
+]
+
+// Seller onboarding: stand number and optional alias, a one-screen guide, `Valider`, then an explicit
+// confirmation of the stand number. Only the confirmation stores the onboarding on this device.
+function SellerOnboardingFlow({ goHome, onConfirmed }: { goHome: () => void; onConfirmed: (value: SellerOnboarding) => void }) {
+  const [step, setStep] = useState<OnboardingStep>('details')
+  const [stand, setStand] = useState('')
+  const [alias, setAlias] = useState('')
+
+  function submitDetails(e: FormEvent) {
+    e.preventDefault()
+    if (!stand.trim()) return
+    setStand(stand.trim())
+    trackOnboarding('details_submitted')
+    setStep('guide')
+  }
+
+  function validate() {
+    trackOnboarding('validated')
+    setStep('confirm')
+  }
+
+  function changeNumber() {
+    trackOnboarding('number_changed')
+    setStep('details')
+  }
+
+  function confirm() {
+    trackOnboarding('confirmed')
+    onConfirmed(saveSellerOnboarding(stand, alias))
+  }
+
+  if (step === 'guide') return (
+    <main className="screen onboarding"><BackButton onClick={goHome} />
+      <p className="eyebrow">Ouverture du stand · 2 sur 3</p><h2>Comment ça marche</h2>
+      <ol className="onboarding-guide">
+        {ONBOARDING_GUIDE.map(item => (
+          <li key={item.title}>
+            <span className="onboarding-guide-icon" aria-hidden="true">{item.icon}</span>
+            <span><strong>{item.title}</strong><small>{item.text}</small></span>
+          </li>
+        ))}
+      </ol>
+      <button className="primary" type="button" onClick={validate}>Valider</button>
+      <button className="text-action onboarding-back" type="button" onClick={() => setStep('details')}>← Modifier le stand ou le pseudo</button>
+    </main>
+  )
+
+  if (step === 'confirm') return (
+    <main className="screen onboarding"><BackButton onClick={goHome} />
+      <p className="eyebrow">Ouverture du stand · 3 sur 3</p><h2>Confirmez votre stand</h2>
+      <div className="onboarding-confirm">
+        <span>Numéro de stand</span>
+        <strong>Stand {stand}</strong>
+        {alias.trim() && <small>Pseudo : {alias.trim()}</small>}
+      </div>
+      <p className="lead small">Vérifiez le numéro affiché sur votre emplacement : ce téléphone gérera ce stand et ses annonces.</p>
+      <button className="primary" type="button" onClick={confirm}>Confirmer le stand {stand}</button>
+      <button className="secondary" type="button" onClick={changeNumber}>Changer de numéro</button>
+    </main>
+  )
+
+  return (
+    <main className="screen onboarding"><BackButton onClick={goHome} />
+      <p className="eyebrow">Ouverture du stand · 1 sur 3</p><h2>Commencez par votre stand</h2>
+      <p className="lead small">Indiquez le numéro de votre emplacement pour publier vos objets et les retrouver ensuite.</p>
+      <form className="form-stack stand-login" onSubmit={submitDetails}>
+        <label>Numéro de stand<input autoFocus required maxLength={40} inputMode="text" placeholder="Ex. 42" value={stand} onChange={e => setStand(e.target.value)} /></label>
+        <label><span>Pseudo vendeur <span className="muted">(facultatif)</span></span><input maxLength={80} placeholder="Ex. Chez Martine" value={alias} onChange={e => setAlias(e.target.value)} /><small>Affiché sur vos annonces ; modifiable pour chaque objet.</small></label>
+        <button className="primary" type="submit">Continuer</button>
+      </form>
+      <p className="seller-access-note">Pas de compte à créer : le numéro de stand sert d’accès rapide à l’espace vendeur.</p>
+    </main>
+  )
+}
+
 function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => void }) {
-  const [standInput, setStandInput] = useState(() => localStorage.getItem(SELLER_STAND_KEY) || '')
-  const [standNumber, setStandNumber] = useState(() => localStorage.getItem(SELLER_STAND_KEY) || '')
+  const [onboarding, setOnboarding] = useState(readSellerOnboarding)
+  const standNumber = onboarding?.stand ?? ''
+  const sellerAlias = onboarding?.alias ?? ''
+  const [confirmingStandChange, setConfirmingStandChange] = useState(false)
   const [sellerMode, setSellerMode] = useState<SellerMode>('dashboard')
   const [sellerItems, setSellerItems] = useState<Listing[]>([])
   const [analysis, setAnalysis] = useState<SellerAnalysis | null>(null)
@@ -238,17 +337,12 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     if (standNumber) void loadSellerItems(standNumber)
   }, [standNumber])
 
-  async function enterStand(e: FormEvent) {
-    e.preventDefault()
-    const cleaned = standInput.trim()
-    if (!cleaned) return
-    localStorage.setItem(SELLER_STAND_KEY, cleaned)
-    setStandNumber(cleaned)
-    setSellerMode('dashboard')
-  }
-
+  // Restarts the full onboarding; the stand's listings stay published.
   function changeStand() {
-    setStandNumber('')
+    trackOnboarding('stand_reset')
+    clearSellerOnboarding()
+    setOnboarding(null)
+    setConfirmingStandChange(false)
     setSellerItems([])
     setAnalysis(null)
     setEditing(null)
@@ -267,7 +361,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     setPreview(false)
     setError('')
     setAiProgress(null)
-    setDraft({ ...EMPTY_DRAFT, stand_number: standNumber })
+    setDraft({ ...EMPTY_DRAFT, stand_number: standNumber, seller_alias: sellerAlias })
     setSellerMode('create')
   }
 
@@ -311,7 +405,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
         category: result.category,
         price_eur: String(result.suggested_price_eur),
         stand_number: standNumber,
-        seller_alias: ''
+        seller_alias: sellerAlias
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Analyse impossible.')
@@ -367,18 +461,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
     }
   }
 
-  if (!standNumber) return (
-    <main className="screen"><BackButton onClick={goHome} />
-      <p className="eyebrow">Je vends un objet</p><h2>Commencez par votre stand</h2>
-      <p className="lead small">Entrez votre numéro de stand pour publier un objet ou retrouver les annonces déjà créées.</p>
-      <form className="stand-login" onSubmit={enterStand}>
-        <label>Numéro de stand<input autoFocus required maxLength={40} inputMode="text" placeholder="Ex. 42" value={standInput} onChange={e => setStandInput(e.target.value)} /></label>
-        <button className="primary" disabled={loading} type="submit">{loading ? 'Ouverture…' : 'Accéder à mon stand'}</button>
-      </form>
-      {error && <p className="error">{error}</p>}
-      <p className="seller-access-note">Pas de compte à créer : pour ce MVP, le numéro de stand sert d’accès rapide à l’espace vendeur.</p>
-    </main>
-  )
+  if (!standNumber) return <SellerOnboardingFlow goHome={goHome} onConfirmed={setOnboarding} />
 
   if (published) return (
     <main className="screen"><button className="back" onClick={() => void backToDashboard()}>← Mes annonces</button>
@@ -392,7 +475,13 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
 
   if (sellerMode === 'dashboard') return (
     <main className="screen wide"><BackButton onClick={goHome} />
-      <div className="seller-heading"><div><p className="eyebrow">Je vends un objet</p><h2>Stand {standNumber}</h2></div><button className="text-action" type="button" onClick={changeStand}>Changer</button></div>
+      <div className="seller-heading"><div><p className="eyebrow">Je vends un objet</p><h2>Stand {standNumber}</h2></div>{!confirmingStandChange && <button className="text-action" type="button" onClick={() => setConfirmingStandChange(true)}>Changer de stand</button>}</div>
+      {confirmingStandChange && (
+        <div className="stand-change-confirm" role="group" aria-label="Changer de stand">
+          <p><strong>Changer de stand ?</strong> Ce téléphone ne gérera plus le stand {standNumber}. Ses annonces restent publiées.</p>
+          <div><button className="secondary compact" type="button" onClick={changeStand}>Changer de stand</button><button className="text-action" type="button" onClick={() => setConfirmingStandChange(false)}>Annuler</button></div>
+        </div>
+      )}
       <button className="primary" type="button" onClick={startCreate}>＋ Ajouter un objet</button>
       <div className="seller-section-title"><h3>Mes annonces</h3><span>{sellerItems.filter(item => item.sold_at === null).length} en vente · {sellerItems.filter(item => item.sold_at !== null).length} vendue(s)</span></div>
       {error && <p className="error">{error}</p>}
@@ -429,7 +518,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
         <label>Petite phrase sympa <span className="muted">(facultatif)</span><input maxLength={180} value={editDraft.fun_line} onChange={e => setEditDraft({ ...editDraft, fun_line: e.target.value })} /></label>
         <label>Catégorie<select value={editDraft.category} onChange={e => setEditDraft({ ...editDraft, category: e.target.value as ListingCategory })}>{LISTING_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></label>
         <label>Prix (€)<input required min="0" step="0.5" inputMode="decimal" type="number" value={editDraft.price_eur} onChange={e => setEditDraft({ ...editDraft, price_eur: e.target.value })} /></label>
-        <label>Pseudo vendeur <span className="muted">(facultatif)</span><input value={editDraft.seller_alias} onChange={e => setEditDraft({ ...editDraft, seller_alias: e.target.value })} /></label>
+        <label><span>Pseudo vendeur <span className="muted">(facultatif)</span></span><input value={editDraft.seller_alias} onChange={e => setEditDraft({ ...editDraft, seller_alias: e.target.value })} /></label>
         {error && <p className="error">{error}</p>}
         <button className="primary" disabled={loading} type="submit">{loading ? 'Enregistrement…' : 'Enregistrer les modifications'}</button>
         <button className="secondary" disabled={loading} type="button" onClick={() => void backToDashboard()}>Annuler</button>
@@ -459,7 +548,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
         <label>Petite phrase sympa <span className="muted">(facultatif)</span><input maxLength={180} value={draft.fun_line} onChange={e => setDraft({ ...draft, fun_line: e.target.value })} /></label>
         <label>Catégorie<select value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value as ListingCategory })}>{LISTING_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></label>
         <label>Prix final (€)<input required min="0" step="0.5" inputMode="decimal" type="number" value={draft.price_eur} onChange={e => setDraft({ ...draft, price_eur: e.target.value })} /><small>Suggestion initiale : {analysis.suggested_price_eur} € · fourchette {analysis.price_range_eur.min}–{analysis.price_range_eur.max} €</small></label>
-        <label>Pseudo vendeur <span className="muted">(facultatif)</span><input value={draft.seller_alias} onChange={e => setDraft({ ...draft, seller_alias: e.target.value })} /></label>
+        <label><span>Pseudo vendeur <span className="muted">(facultatif)</span></span><input value={draft.seller_alias} onChange={e => setDraft({ ...draft, seller_alias: e.target.value })} /></label>
         <button className="primary" type="submit">Prévisualiser l’annonce</button>
       </form>
     </main>
