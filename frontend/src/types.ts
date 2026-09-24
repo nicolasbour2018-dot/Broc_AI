@@ -26,6 +26,8 @@ export interface Listing {
   seller_alias: string | null
   created_at: string
   sold_at: string | null
+  /** Only provided on the seller's own listings. */
+  view_count?: number | null
 }
 
 export interface ListingDraft {
