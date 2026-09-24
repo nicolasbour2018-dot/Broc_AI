@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, downloadSellerReport, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
+import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, downloadSellerReport, fetchLatestListings, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
 import Admin from './Admin'
 import Showroom from './Showroom'
 import FunLab from './FunLab'
 import { DEFAULT_CATEGORY, LISTING_CATEGORIES } from './categories'
+import { readSellerOnboarding } from './sellerOnboarding'
 import type { ListingCategory } from './categories'
 import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
@@ -73,31 +74,71 @@ function HomeChevron() {
   return <svg className="home-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
 }
 
-function Home({ navigate }: { navigate: (view: View) => void }) {
-  const [rememberedStand, setRememberedStand] = useState(() => localStorage.getItem(SELLER_STAND_KEY)?.trim() || '')
-  const [sellerItems, setSellerItems] = useState<Listing[]>([])
-  const [loadingListings, setLoadingListings] = useState(false)
+const HOME_LISTING_COUNT = 5
+
+function HomeStandIcon() {
+  return <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 13h22v15H5zM3 12l3-8h20l3 8c0 2-2 3-4 2-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 0-4-2z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M12 19h8v9h-8z" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg>
+}
+
+function HomeViewsIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" fill="none" stroke="currentColor" strokeWidth="1.6"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg>
+}
+
+function formatViews(count: number): string {
+  return `${count} ${count >= 2 ? 'vues' : 'vue'}`
+}
+
+// Seller home order: active listings first, then most viewed, then newest.
+function sortSellerListings(items: Listing[]): Listing[] {
+  return [...items].sort((a, b) =>
+    Number(a.sold_at !== null) - Number(b.sold_at !== null)
+    || (b.view_count ?? 0) - (a.view_count ?? 0)
+    || b.created_at.localeCompare(a.created_at))
+}
+
+function HomeListingRow({ item, onOpen, showStatus }: { item: Listing; onOpen: () => void; showStatus: boolean }) {
+  const sold = item.sold_at !== null
+  const views = typeof item.view_count === 'number' ? formatViews(item.view_count) : null
+  const label = `Ouvrir ${item.title}, ${formatPrice(item.price_eur)}, ${views ?? `stand ${item.stand_number}`}${showStatus ? `, ${sold ? 'vendu' : 'en ligne'}` : ''}`
+  return (
+    <button className={`home-listing-row ${showStatus ? '' : 'no-status'}`} type="button" onClick={onOpen} aria-label={label}>
+      <img src={item.image_url} alt="" loading="lazy" />
+      <span className="home-listing-copy"><strong>{item.title}</strong><b>{formatPrice(item.price_eur)}</b><span className="home-listing-stats">{views ? <><HomeViewsIcon /> {views}</> : <><HomeStandIcon /> Stand {item.stand_number}</>}</span></span>
+      {showStatus && <span className={`home-listing-status ${sold ? 'is-sold' : ''}`}>{sold ? 'Vendu' : 'En ligne'}</span>}
+      <span className="home-listing-chevron" aria-hidden="true"><HomeChevron /></span>
+    </button>
+  )
+}
+
+function Home({ navigate, openListing }: { navigate: (view: View) => void; openListing: (item: Listing) => void }) {
+  // Only a confirmed onboarding makes this device a seller; everyone else gets the visitor home.
+  const [onboarding] = useState(readSellerOnboarding)
+  const sellerStand = onboarding?.stand ?? ''
+  const [items, setItems] = useState<Listing[]>([])
+  const [loadingListings, setLoadingListings] = useState(true)
   const [listingsError, setListingsError] = useState('')
 
-  async function loadSellerItems(stand: string) {
+  async function loadItems() {
     setLoadingListings(true)
     setListingsError('')
     try {
-      setSellerItems(await fetchSellerListings(stand))
+      setItems(sellerStand ? sortSellerListings(await fetchSellerListings(sellerStand)).slice(0, HOME_LISTING_COUNT) : await fetchLatestListings(HOME_LISTING_COUNT))
     } catch (err) {
-      setListingsError(err instanceof Error ? err.message : 'Impossible de charger vos annonces.')
+      setListingsError(err instanceof Error ? err.message : 'Impossible de charger les annonces.')
     } finally {
       setLoadingListings(false)
     }
   }
 
-  useEffect(() => {
-    if (rememberedStand) void loadSellerItems(rememberedStand)
-  }, [rememberedStand])
+  useEffect(() => { void loadItems() }, [sellerStand])
 
   function openSeller() {
     navigate('seller')
   }
+
+  const title = sellerStand ? 'Mes annonces' : 'Dernières annonces'
+  // An empty visitor list would be a hollow block on the home: hide it until the first listing exists.
+  const hideListings = !sellerStand && !loadingListings && !listingsError && items.length === 0
 
   return (
     <main className="screen home">
@@ -106,10 +147,12 @@ function Home({ navigate }: { navigate: (view: View) => void }) {
           <strong><span>Broc</span><span>AI</span><svg className="brand-sparkle" viewBox="0 0 36 36" aria-hidden="true" focusable="false"><path d="M18 0c2.5 10 6 13.5 18 18-12 4.5-15.5 8-18 18C15.5 26 12 22.5 0 18 12 13.5 15.5 10 18 0Z" fill="currentColor" /><path d="M7 1c1.1 4.4 2.6 5.9 7 8-4.4 1.6-5.9 2.9-7 7-1.1-4.1-2.6-5.4-7-7 4.4-2.1 5.9-3.6 7-8Z" fill="currentColor" transform="translate(21 20) scale(.65)" /></svg></strong>
           <small>La brocante, plus intelligente</small>
         </div>
-        <button className="stand-entry" type="button" onClick={openSeller} aria-label={rememberedStand ? `Ouvrir le stand ${rememberedStand}` : 'Ouvrir mon stand'}>
-          <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false"><path d="M5 13h22v15H5zM3 12l3-8h20l3 8c0 2-2 3-4 2-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 1-5 0-2 1-4 0-4-2z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/><path d="M12 19h8v9h-8z" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg>
-          <span>{rememberedStand ? `Stand ${rememberedStand}` : 'Mon stand'}</span>
-        </button>
+        {sellerStand && (
+          <button className="stand-entry" type="button" onClick={openSeller} aria-label={`Ouvrir le stand ${sellerStand}`}>
+            <HomeStandIcon />
+            <span>Stand {sellerStand}</span>
+          </button>
+        )}
       </header>
 
       <section className="journey-section" aria-label="Parcours BrocAI">
@@ -141,33 +184,25 @@ function Home({ navigate }: { navigate: (view: View) => void }) {
         </div>
       </section>
 
-      <section className="home-listings" aria-labelledby="home-listings-title" aria-live="polite">
-        <div className="home-listings-heading">
-          <div><svg className="home-listings-icon" viewBox="0 0 28 28" aria-hidden="true" focusable="false"><path d="M7 3.5h10l5 5V24H7z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M17 4v5h5M10 14h9M10 18h9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><h2 id="home-listings-title">Mes annonces</h2></div>
-          <button type="button" onClick={openSeller} aria-label="Voir toutes mes annonces">Voir tout <HomeChevron /></button>
-        </div>
-        {!rememberedStand ? (
-          <button className="home-listings-empty" type="button" onClick={openSeller}>Accédez à votre stand pour retrouver vos annonces <HomeChevron /></button>
-        ) : loadingListings ? (
-          <p className="home-listings-state">Chargement de vos annonces…</p>
-        ) : listingsError ? (
-          <div className="home-listings-error"><span>{listingsError}</span><button type="button" onClick={() => void loadSellerItems(rememberedStand)}>Réessayer</button></div>
-        ) : sellerItems.length === 0 ? (
-          <button className="home-listings-empty" type="button" onClick={openSeller}>Aucune annonce pour le moment. Ajoutez votre premier objet <HomeChevron /></button>
-        ) : (
-          <div className="home-listing-list">
-            {sellerItems.slice(0, 2).map(item => {
-              const sold = item.sold_at !== null
-              return <button className="home-listing-row" key={item.id} type="button" onClick={openSeller} aria-label={`Ouvrir ${item.title}, ${formatPrice(item.price_eur)}, ${sold ? 'vendu' : 'en ligne'}`}>
-                <img src={item.image_url} alt="" loading="lazy" />
-                <span className="home-listing-copy"><strong>{item.title}</strong><b>{formatPrice(item.price_eur)}</b><span className="home-listing-stats"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" fill="none" stroke="currentColor" strokeWidth="1.6"/><circle cx="12" cy="12" r="2.7" fill="none" stroke="currentColor" strokeWidth="1.6"/></svg> Stand {item.stand_number}</span></span>
-                <span className={`home-listing-status ${sold ? 'is-sold' : ''}`}>{sold ? 'Vendu' : 'En ligne'}</span>
-                <span className="home-listing-chevron" aria-hidden="true"><HomeChevron /></span>
-              </button>
-            })}
+      {!hideListings && (
+        <section className="home-listings" aria-labelledby="home-listings-title" aria-live="polite">
+          <div className="home-listings-heading">
+            <div><svg className="home-listings-icon" viewBox="0 0 28 28" aria-hidden="true" focusable="false"><path d="M7 3.5h10l5 5V24H7z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M17 4v5h5M10 14h9M10 18h9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><h2 id="home-listings-title">{title}</h2></div>
+            <button type="button" onClick={sellerStand ? openSeller : () => navigate('market')} aria-label={sellerStand ? 'Voir toutes mes annonces' : 'Voir toutes les annonces'}>Voir tout <HomeChevron /></button>
           </div>
-        )}
-      </section>
+          {loadingListings ? (
+            <p className="home-listings-state">Chargement des annonces…</p>
+          ) : listingsError ? (
+            <div className="home-listings-error"><span>{listingsError}</span><button type="button" onClick={() => void loadItems()}>Réessayer</button></div>
+          ) : items.length === 0 ? (
+            <button className="home-listings-empty" type="button" onClick={openSeller}>Aucune annonce pour le moment. Ajoutez votre premier objet <HomeChevron /></button>
+          ) : (
+            <div className="home-listing-list">
+              {items.map(item => <HomeListingRow key={item.id} item={item} showStatus={Boolean(sellerStand)} onOpen={sellerStand ? openSeller : () => openListing(item)} />)}
+            </div>
+          )}
+        </section>
+      )}
     </main>
   )
 }
@@ -440,7 +475,7 @@ function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => 
   )
 }
 
-function Market({ goHome }: { goHome: () => void }) {
+function Market({ goHome, initialListing }: { goHome: () => void; initialListing: Listing | null }) {
   const [items, setItems] = useState<Listing[]>([])
   const [query, setQuery] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
@@ -464,7 +499,10 @@ function Market({ goHome }: { goHome: () => void }) {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => {
+    void load()
+    if (initialListing) void openListing(initialListing)
+  }, [])
 
   async function openListing(item: Listing) {
     setSelected(item)
@@ -721,6 +759,8 @@ export default function App() {
       ? 'admin'
       : window.location.pathname === '/showroom' ? 'showroom' : window.location.pathname === '/fun' ? 'funlab' : 'home'
   )
+  // Listing tapped on the home: the market opens directly on its detail.
+  const [marketEntry, setMarketEntry] = useState<Listing | null>(null)
   const previousView = useRef<View | null>(null)
   const shellRef = useRef<HTMLDivElement>(null)
 
@@ -751,10 +791,10 @@ export default function App() {
     if (view === 'showroom') return <Showroom exitShowroom={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'funlab') return <FunLab goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => setView('market')} />
-    if (view === 'market') return <Market goHome={() => setView('home')} />
+    if (view === 'market') return <Market goHome={() => setView('home')} initialListing={marketEntry} />
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
-    return <Home navigate={setView} />
-  }, [view])
+    return <Home navigate={next => { setMarketEntry(null); setView(next) }} openListing={item => { setMarketEntry(item); setView('market') }} />
+  }, [view, marketEntry])
   const showProductFooter = view !== 'home' && view !== 'admin' && view !== 'showroom'
 
   return (

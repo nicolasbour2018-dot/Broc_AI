@@ -189,6 +189,16 @@ export async function fetchListings(query = '', category?: ListingCategory): Pro
   return rows
 }
 
+// Home preview of the newest active listings. Deliberately not tracked as `catalogue_loaded`,
+// which measures the mini-market catalogue itself.
+export async function fetchLatestListings(limit: number): Promise<Listing[]> {
+  const url = new URL('/api/listings', window.location.origin)
+  url.searchParams.set('limit', String(limit))
+  const response = await fetch(url, { headers: { 'X-Session-ID': getSessionId() } })
+  if (!response.ok) throw new Error(await parseError(response))
+  return response.json() as Promise<Listing[]>
+}
+
 export async function fetchListing(listingId: string): Promise<Listing> {
   const response = await fetch(`/api/listings/${encodeURIComponent(listingId)}`, {
     headers: { 'X-Session-ID': getSessionId() }

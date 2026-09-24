@@ -442,12 +442,14 @@ textarea { min-height: 108px; resize: vertical; }
 .home-listings-heading { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid #eeefef; }
 .home-listings-heading > div { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .home-listings-icon { flex: 0 0 auto; width: 28px; height: 28px; color: #66748a; }
-.home-listings-heading h2 { margin: 0; font-family: var(--font-display); font-size: clamp(1.35rem, 4.6vw, 1.8rem); font-weight: 500; letter-spacing: 0; white-space: nowrap; }
-.home-listings-heading > button { display: inline-flex; min-height: 44px; align-items: center; gap: 2px; border: 0; background: transparent; color: #426fa7; font-family: var(--font-body); font-size: clamp(.9rem, 3vw, 1.1rem); }
+.home-listings-heading h2 { margin: 0; font-family: var(--font-display); font-size: clamp(1.25rem, 4.6vw, 1.8rem); font-weight: 500; letter-spacing: 0; line-height: 1.1; }
+.home-listings-heading > button { flex: 0 0 auto; white-space: nowrap; display: inline-flex; min-height: 44px; align-items: center; gap: 2px; border: 0; background: transparent; color: #426fa7; font-family: var(--font-body); font-size: clamp(.9rem, 3vw, 1.1rem); }
 .home-listings-heading > button .home-chevron { width: 18px; height: 18px; }
 .home-listing-list { display: grid; }
 .home-listing-row { position: relative; width: 100%; min-width: 0; min-height: 96px; display: grid; grid-template-columns: clamp(66px, 18vw, 82px) minmax(0, 1fr) auto 18px; align-items: center; gap: clamp(9px, 2.5vw, 14px); padding: 10px 0; border: 0; border-bottom: 1px solid #eeefef; background: #fff; color: inherit; text-align: left; }
 .home-listing-row:last-child { border-bottom: 0; }
+/* Visitor rows carry no status: every listing shown is active. */
+.home-listing-row.no-status { grid-template-columns: clamp(66px, 18vw, 82px) minmax(0, 1fr) 18px; }
 .home-listing-row > img { width: 100%; aspect-ratio: 1; border-radius: 13px; background: #f1f0ed; object-fit: cover; }
 .home-listing-copy { min-width: 0; display: grid; gap: 3px; }
 .home-listing-copy strong, .home-listing-copy b { overflow: hidden; color: var(--broc-ink); font-family: var(--font-display); font-size: clamp(1.02rem, 3.8vw, 1.3rem); font-weight: 500; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
@@ -465,6 +467,7 @@ textarea { min-height: 108px; resize: vertical; }
 
 @media (max-width: 380px) {
   .home-listing-row { grid-template-columns: 62px minmax(0, 1fr) auto 12px; gap: 8px; }
+  .home-listing-row.no-status { grid-template-columns: 62px minmax(0, 1fr) 12px; }
   .home-listing-status { min-width: 0; padding: 7px 8px; font-size: .7rem; }
   .home-listing-copy strong, .home-listing-copy b { font-size: .98rem; }
 }

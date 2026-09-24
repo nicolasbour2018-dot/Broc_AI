@@ -40,7 +40,7 @@ L’accueil présente les parcours `Je vends`, `Je recherche`, `J’analyse` et 
 | | Visiteur | Vendeur ayant confirmé son onboarding |
 | --- | --- | --- |
 | Pastille `Stand N` | absente | visible, ouvre son stand |
-| Bloc d’annonces | `Dernières annonces` : 5 annonces actives les plus récentes | `Mes annonces` : 5 annonces, vues décroissantes puis plus récentes ; actives avant vendues |
+| Bloc d’annonces | `Dernières annonces` : 5 annonces actives les plus récentes ; bloc masqué tant qu’aucune annonce n’existe | `Mes annonces` : 5 annonces, vues décroissantes puis plus récentes ; actives avant vendues |
 | Toucher une ligne | fiche de l’annonce sur le mini-marché | son stand |
 | Ligne de statistiques | icône boutique et `Stand N` | nombre de vues, `0` compris |
 | `Voir tout` | mini-marché | son stand |
