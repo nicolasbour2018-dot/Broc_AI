@@ -40,7 +40,7 @@ Generated plans and benchmark results stay local under:
 
 `benchmarks/step10/results/`
 
-Both local directories are ignored by Git. `.agent-system/` remains reserved for the execution harness.
+Both local directories are ignored by Git.
 
 ## Local credentials
 

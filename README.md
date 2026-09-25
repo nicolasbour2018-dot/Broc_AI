@@ -143,7 +143,7 @@ Ne pas implémenter sans décision explicite :
 - automatisations multi-agents dans Brocai ;
 - vraies intégrations Gmail, calendrier ou domotique dans le showroom.
 
-## 7. Règles de travail pour le harnais
+## 7. Règles de travail pour le projet
 
 - **Ne pas élargir spontanément le scope.** Une fonctionnalité ajoutée doit remplacer quelque chose de moins important ou être explicitement validée.
 - Construire par **tranches verticales testables**, pas par couches techniques isolées pendant plusieurs jours.
