@@ -6,7 +6,7 @@ from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from .ai_queue import ACTIVE_STATUSES, ai_queue
-from .categories import ListingCategory, normalize_category
+from .categories import LISTING_CATEGORIES, ListingCategory, normalize_category
 from .config import settings
 from .db import engine, get_db, init_db
 from .funlab import router as funlab_router
@@ -17,6 +17,7 @@ from .schemas import (
     AssistantQuestionOut,
     AssistantQuestionRequest,
     AssistantQuickReplies,
+    ListingCategoryCountsOut,
     HealthOut,
     ListingCreate,
     ListingOut,
@@ -452,6 +453,7 @@ def list_listings(
     q: str | None = Query(default=None, max_length=100),
     category: ListingCategory | None = Query(default=None),
     limit: int | None = Query(default=None, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     x_session_id: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> list[ListingOut]:
@@ -468,14 +470,32 @@ def list_listings(
                 Listing.category.ilike(pattern),
             )
         )
-    statement = statement.order_by(Listing.created_at.desc())
+    statement = statement.order_by(Listing.created_at.desc(), Listing.id.desc())
     if limit is not None:
         statement = statement.limit(limit)
+    if offset:
+        statement = statement.offset(offset)
     rows = list(db.scalars(statement).all())
-    if cleaned or category is not None:
+    if (cleaned or category is not None) and offset == 0:
         emit_event(db, session_id(x_session_id), "search_performed", {"query_length": len(cleaned), "category": category.value if category else None, "results": len(rows)})
         db.commit()
     return [listing_out(item) for item in rows]
+
+
+@app.get("/api/listings/category-counts", response_model=ListingCategoryCountsOut)
+def listing_category_counts(db: Session = Depends(get_db)) -> ListingCategoryCountsOut:
+    rows = db.execute(
+        select(Listing.category, func.count(Listing.id))
+        .where(Listing.sold_at.is_(None))
+        .group_by(Listing.category)
+    ).all()
+    counts = {category: 0 for category in LISTING_CATEGORIES}
+    for category, count in rows:
+        counts[normalize_category(category).value] += count
+    return ListingCategoryCountsOut(
+        total=sum(counts.values()),
+        categories=[{"category": category, "count": counts[category]} for category in LISTING_CATEGORIES],
+    )
 
 
 @app.get("/api/listings/{listing_id}", response_model=ListingOut)

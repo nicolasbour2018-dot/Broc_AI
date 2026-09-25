@@ -193,6 +193,16 @@ class ListingOut(BaseModel):
     view_count: int | None = None
 
 
+class CategoryCountOut(BaseModel):
+    category: ListingCategory
+    count: int
+
+
+class ListingCategoryCountsOut(BaseModel):
+    total: int
+    categories: list[CategoryCountOut]
+
+
 class HealthOut(BaseModel):
     status: Literal["ok", "degraded"]
     database: Literal["ok", "error"]
