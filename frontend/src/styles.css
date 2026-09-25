@@ -367,6 +367,34 @@ textarea { min-height: 108px; resize: vertical; }
 .view-funlab .fun-wish-card, .view-funlab .fun-result-card { border-radius: 20px; }
 
 .view-home.app-shell { padding: max(16px, env(safe-area-inset-top)) 0 max(18px, env(safe-area-inset-bottom)); }
+.view-welcome.app-shell { padding: max(16px, env(safe-area-inset-top)) 0 max(18px, env(safe-area-inset-bottom)); background: #fff; }
+.view-welcome .screen.welcome {
+  width: min(100%, 980px);
+  min-height: calc(100vh - 34px);
+  min-height: calc(100dvh - 34px);
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+  padding: clamp(22px, 5vw, 48px);
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+.welcome-brand { width: fit-content; color: var(--broc-seller); font-family: var(--font-display); font-size: 1.7rem; line-height: 1; }
+.welcome-brand span { color: var(--broc-assistant); }
+.welcome-content { width: min(100%, 560px); margin: auto; padding: 40px 0; }
+.welcome .eyebrow { color: var(--broc-market-text); }
+.welcome h1 { margin: 12px 0 30px; font-family: var(--font-display); font-size: clamp(2.8rem, 11vw, 5rem); font-weight: 500; letter-spacing: -.045em; line-height: 1.04; text-wrap: balance; }
+.welcome-features { display: grid; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.welcome-features li { display: grid; gap: 3px; padding: 14px 16px; border-radius: 16px; background: var(--broc-surface-soft); }
+.welcome-features li:nth-child(2) { background: #eef5fc; }
+.welcome-features li:nth-child(3) { background: #fcf2ec; }
+.welcome-features strong { color: var(--broc-ink); font-family: var(--font-display); font-size: 1.2rem; font-weight: 500; }
+.welcome-features span { color: var(--broc-ink-soft); line-height: 1.35; }
+.welcome-actions { display: grid; justify-items: center; gap: 7px; margin-top: 24px; }
+.welcome-actions .primary { margin: 0; background: var(--broc-primary); }
+.welcome-seller { min-height: 44px; padding: 8px 16px; border: 0; background: transparent; color: var(--broc-seller-text); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .view-home .screen.home {
   width: min(100%, 980px);
   min-height: 0;
