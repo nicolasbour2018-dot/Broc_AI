@@ -27,6 +27,7 @@ from .schemas import (
     ListingUpdate,
 )
 from .seller_report import router as seller_report_router
+from .stands import require_stand_owner, router as stands_router
 from .storage import delete_image, image_exists, save_image
 from .telemetry import health_router, metric_snapshot_recorder, router as telemetry_router
 
@@ -58,6 +59,7 @@ app.include_router(health_router)
 app.include_router(telemetry_router)
 app.include_router(funlab_router)
 app.include_router(seller_report_router)
+app.include_router(stands_router)
 
 
 def session_id(value: str | None) -> str:
@@ -366,11 +368,13 @@ def update_listing(
     listing_id: str,
     payload: ListingUpdate,
     x_session_id: str | None = Header(default=None),
+    x_stand_token: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> ListingOut:
     listing = db.get(Listing, listing_id)
     if listing is None or listing.stand_number != payload.stand_number:
         raise HTTPException(status_code=404, detail="Annonce introuvable pour ce stand.")
+    require_stand_owner(db, listing.stand_number, x_stand_token)
 
     listing.title = payload.title.strip()
     listing.description = payload.description.strip()
@@ -394,11 +398,13 @@ def update_listing_status(
     listing_id: str,
     payload: ListingStatusUpdate,
     x_session_id: str | None = Header(default=None),
+    x_stand_token: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> ListingOut:
     listing = db.get(Listing, listing_id)
     if listing is None or listing.stand_number != payload.stand_number:
         raise HTTPException(status_code=404, detail="Annonce introuvable pour ce stand.")
+    require_stand_owner(db, listing.stand_number, x_stand_token)
 
     listing.sold_at = utcnow() if payload.sold else None
     emit_event(
@@ -416,8 +422,10 @@ def update_listing_status(
 def create_listing(
     payload: ListingCreate,
     x_session_id: str | None = Header(default=None),
+    x_stand_token: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> ListingOut:
+    require_stand_owner(db, payload.stand_number, x_stand_token)
     if not image_exists(payload.image_key):
         raise HTTPException(status_code=400, detail="La photo associée à l'annonce est introuvable.")
 

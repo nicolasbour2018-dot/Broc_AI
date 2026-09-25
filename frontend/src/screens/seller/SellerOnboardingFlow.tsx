@@ -1,11 +1,12 @@
 import { FormEvent, useState } from 'react'
-import { trackEvent } from '../../api'
+import { openStandSession, trackEvent } from '../../api'
 import { saveSellerOnboarding } from '../../sellerOnboarding'
 import type { SellerOnboarding } from '../../sellerOnboarding'
 import { Icon } from '../../ui/icons'
 import type { IconName } from '../../ui/icons'
-import { Kicker, Page } from '../../ui/Page'
+import { Alert, Kicker, Page } from '../../ui/Page'
 import { StandBadge } from '../../ui/Tags'
+import { useToast } from '../../ui/Toast'
 
 type OnboardingStep = 'details' | 'guide' | 'confirm'
 
@@ -19,12 +20,34 @@ const GUIDE: { icon: IconName; title: string; text: string }[] = [
   { icon: 'check', title: 'Publiez, puis marquez « vendu »', text: 'Les visiteurs voient vos objets et votre numéro de stand. Un geste quand un objet part.' }
 ]
 
-// Stand number and optional alias, a one-screen guide, then an explicit confirmation of the number.
-// Only the confirmation stores the onboarding on this device.
+// Stand number and optional alias, a one-screen guide, then the confirmation of the number with the stand code.
+// The first phone on a stand chooses the code; another phone joins with the same code. Only a code accepted
+// by the server stores the onboarding on this device.
 export default function SellerOnboardingFlow({ onConfirmed }: { onConfirmed: (value: SellerOnboarding) => void }) {
+  const toast = useToast()
   const [step, setStep] = useState<OnboardingStep>('details')
   const [stand, setStand] = useState('')
   const [alias, setAlias] = useState('')
+  const [pin, setPin] = useState('')
+  const [opening, setOpening] = useState(false)
+  const [error, setError] = useState('')
+  const pinValid = /^\d{4}$/.test(pin)
+
+  async function openStand(e: FormEvent) {
+    e.preventDefault()
+    if (!pinValid || opening) return
+    setOpening(true)
+    setError('')
+    try {
+      const session = await openStandSession(stand, pin)
+      trackOnboarding(session.created ? 'confirmed' : 'joined')
+      toast({ message: session.created ? `Stand ${stand} ouvert. Retenez votre code pour un autre téléphone.` : `Téléphone ajouté au stand ${stand}.` })
+      onConfirmed(saveSellerOnboarding(stand, alias, session.token))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ouverture du stand impossible. Réessayez.')
+      setOpening(false)
+    }
+  }
 
   function submitDetails(e: FormEvent) {
     e.preventDefault()
@@ -60,8 +83,16 @@ export default function SellerOnboardingFlow({ onConfirmed }: { onConfirmed: (va
         {alias.trim() && <span>Pseudo : {alias.trim()}</span>}
       </div>
       <p className="lede">Vérifiez le numéro affiché sur votre emplacement : ce téléphone gérera ce stand et ses annonces.</p>
-      <button className="btn btn--primary" type="button" onClick={() => { trackOnboarding('confirmed'); onConfirmed(saveSellerOnboarding(stand, alias)) }}>Oui, c’est le stand {stand}</button>
-      <button className="btn btn--secondary" type="button" onClick={() => { trackOnboarding('number_changed'); setStep('details') }}>Changer de numéro</button>
+      <form className="form" onSubmit={openStand}>
+        <label className="field">
+          <span className="field__label">Code du stand · 4 chiffres</span>
+          <input className="input--big" autoFocus inputMode="numeric" autoComplete="off" pattern="[0-9]{4}" maxLength={4} placeholder="••••" value={pin} onChange={e => { setPin(e.target.value.replace(/\D/g, '').slice(0, 4)); setError('') }} />
+          <small className="field__help">Premier téléphone sur ce stand : choisissez un code et retenez-le. Autre téléphone : saisissez le même code.</small>
+        </label>
+        {error && <Alert tone="error">{error}</Alert>}
+        <button className="btn btn--primary" type="submit" disabled={!pinValid || opening}>{opening ? 'Ouverture…' : `Oui, c’est le stand ${stand}`}</button>
+      </form>
+      <button className="btn btn--secondary" type="button" disabled={opening} onClick={() => { trackOnboarding('number_changed'); setError(''); setStep('details') }}>Changer de numéro</button>
     </Page>
   )
 
@@ -82,7 +113,7 @@ export default function SellerOnboardingFlow({ onConfirmed }: { onConfirmed: (va
         </label>
         <button className="btn btn--primary" type="submit">Continuer</button>
       </form>
-      <p className="muted-line">Pas de compte à créer : le numéro de stand suffit.</p>
+      <p className="muted-line">Pas de compte à créer : un code à 4 chiffres protège vos annonces.</p>
     </Page>
   )
 }
