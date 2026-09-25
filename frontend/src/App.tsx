@@ -9,6 +9,7 @@ import { MAX_SELLER_PHOTOS, useSellerBatch } from './sellerBatch'
 import type { SellerBatchController, SellerBatchItem } from './sellerBatch'
 import type { SellerOnboarding } from './sellerOnboarding'
 import type { ListingCategory } from './categories'
+import type { EntrySource } from './api'
 import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingCategoryCounts, ListingEditDraft, SellerAnalysis } from './types'
 
 type View = 'welcome' | 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom' | 'funlab'
@@ -612,7 +613,7 @@ function Seller({ goHome, openMarket, entry, sellerBatch }: { goHome: () => void
 const MARKET_RECENT_COUNT = 12
 const MARKET_PAGE_SIZE = 24
 
-function Market({ goHome, initialListing, initialMode }: { goHome: () => void; initialListing: Listing | null; initialMode: MarketMode }) {
+function Market({ goHome, initialListing, initialMode, entrySource }: { goHome: () => void; initialListing: Listing | null; initialMode: MarketMode; entrySource: EntrySource }) {
   const [items, setItems] = useState<Listing[]>([])
   const [query, setQuery] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
@@ -648,7 +649,7 @@ function Market({ goHome, initialListing, initialMode }: { goHome: () => void; i
     setError('')
     setMoreError('')
     try {
-      const rows = await fetchListings(q, selectedCategory || undefined, nextMode === 'recent' ? MARKET_RECENT_COUNT : MARKET_PAGE_SIZE + 1)
+      const rows = await fetchListings(q, selectedCategory || undefined, nextMode === 'recent' ? MARKET_RECENT_COUNT : MARKET_PAGE_SIZE + 1, 0, entrySource)
       if (version !== requestVersion.current) return
       setItems(nextMode === 'recent' ? rows : rows.slice(0, MARKET_PAGE_SIZE))
       setHasMore(nextMode === 'all' && rows.length > MARKET_PAGE_SIZE)
@@ -701,7 +702,7 @@ function Market({ goHome, initialListing, initialMode }: { goHome: () => void; i
   useEffect(() => {
     void load('', '', initialMode)
     void loadCategoryCounts()
-    if (initialListing) void openListing(initialListing)
+    if (initialListing) void openListing(initialListing, entrySource)
     return () => {
       requestVersion.current += 1
       countsRequestVersion.current += 1
@@ -709,13 +710,13 @@ function Market({ goHome, initialListing, initialMode }: { goHome: () => void; i
     }
   }, [])
 
-  async function openListing(item: Listing) {
+  async function openListing(item: Listing, source: EntrySource = 'marketplace') {
     const version = ++detailRequestVersion.current
     setSelected(item)
     setDetailLoading(true)
     setDetailError('')
     try {
-      const listing = await fetchListing(item.id)
+      const listing = await fetchListing(item.id, source)
       if (version === detailRequestVersion.current) setSelected(listing)
     } catch (err) {
       if (version === detailRequestVersion.current) setDetailError(err instanceof Error ? err.message : 'Cette annonce n’est plus disponible.')
@@ -741,6 +742,7 @@ function Market({ goHome, initialListing, initialMode }: { goHome: () => void; i
   }
 
   function changeCategory(value: ListingCategory | '') {
+    if (value) void trackEvent('marketplace_category_selected', { category: value, entry_source: 'marketplace' })
     void load(query.trim(), value, 'all')
   }
 
@@ -983,10 +985,13 @@ export default function App() {
   const [marketEntry, setMarketEntry] = useState<Listing | null>(null)
   const [marketMode, setMarketMode] = useState<MarketMode>('recent')
   const previousView = useRef<View | null>(null)
+  const marketEntrySource = useRef<EntrySource>('direct')
   const shellRef = useRef<HTMLDivElement>(null)
 
   function enterFromWelcome(next: 'market' | 'seller') {
     if (next === 'market') {
+      void trackEvent('onboarding_marketplace_clicked', { entry_source: 'welcome' })
+      marketEntrySource.current = 'welcome'
       setMarketEntry(null)
       setMarketMode('recent')
     }
@@ -1014,9 +1019,12 @@ export default function App() {
   useEffect(() => {
     if (view === 'admin') return
     const previous = previousView.current
+    const source = marketEntrySource.current
     previousView.current = view
     void (async () => {
-      await trackSessionStarted()
+      await trackSessionStarted(view === 'welcome' ? 'direct' : view === 'market' ? source : 'home')
+      if (view === 'welcome' && previous !== 'welcome') await trackEvent('onboarding_viewed', { entry_source: 'direct' })
+      if (view === 'market' && previous !== 'market') await trackEvent('marketplace_opened', { entry_source: source })
       await trackEvent('nav_opened', { screen: view, previous_screen: previous })
     })()
   }, [view])
@@ -1026,10 +1034,10 @@ export default function App() {
     if (view === 'admin') return <Admin goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'showroom') return <Showroom exitShowroom={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'funlab') return <FunLab goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
-    if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => { setMarketEntry(null); setMarketMode('recent'); setView('market') }} entry={sellerEntry} sellerBatch={sellerBatch} />
-    if (view === 'market') return <Market goHome={() => setView('home')} initialListing={marketEntry} initialMode={marketMode} />
+    if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => { marketEntrySource.current = 'seller_dashboard'; setMarketEntry(null); setMarketMode('recent'); setView('market') }} entry={sellerEntry} sellerBatch={sellerBatch} />
+    if (view === 'market') return <Market goHome={() => setView('home')} initialListing={marketEntry} initialMode={marketMode} entrySource={marketEntrySource.current} />
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
-    return <Home navigate={setView} openMarket={mode => { setMarketEntry(null); setMarketMode(mode); setView('market') }} openSeller={entry => { setSellerEntry(entry); setView('seller') }} openListing={item => { setMarketEntry(item); setMarketMode('recent'); setView('market') }} />
+    return <Home navigate={setView} openMarket={mode => { marketEntrySource.current = 'home'; setMarketEntry(null); setMarketMode(mode); setView('market') }} openSeller={entry => { setSellerEntry(entry); setView('seller') }} openListing={item => { marketEntrySource.current = 'home_listing'; setMarketEntry(item); setMarketMode('recent'); setView('market') }} />
   }, [view, marketEntry, marketMode, sellerEntry, sellerBatch])
   const showProductFooter = view !== 'welcome' && view !== 'home' && view !== 'admin' && view !== 'showroom'
 

@@ -1,8 +1,28 @@
 import type { ListingCategory } from './categories'
-import type { AdminMetrics, AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, FunQuestType, FunWishResult, FunWishType, Listing, ListingCategoryCounts, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
+import { readSellerOnboarding } from './sellerOnboarding'
+import type { AdminJourneys, AdminMetrics, AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, FunQuestType, FunWishResult, FunWishType, Listing, ListingCategoryCounts, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 const SESSION_KEY = 'brocai-session-id'
 const SESSION_STARTED_KEY = 'brocai-session-started'
+
+export type EntrySource = 'welcome' | 'home' | 'home_listing' | 'marketplace' | 'seller_dashboard' | 'seller_create' | 'direct'
+
+function deviceContext(): { device_context: 'visitor' | 'seller'; seller_stand: string | null } {
+  const onboarding = readSellerOnboarding()
+  return onboarding
+    ? { device_context: 'seller', seller_stand: onboarding.stand }
+    : { device_context: 'visitor', seller_stand: null }
+}
+
+function journeyHeaders(entrySource: EntrySource): Record<string, string> {
+  const context = deviceContext()
+  return {
+    'X-Session-ID': getSessionId(),
+    'X-Device-Context': context.device_context,
+    'X-Entry-Source': entrySource,
+    ...(context.seller_stand ? { 'X-Seller-Stand': context.seller_stand } : {})
+  }
+}
 
 function createSessionId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -33,6 +53,13 @@ export function getSessionId(): string {
 export async function trackEvent(
   eventName:
     | 'session_started'
+    | 'onboarding_viewed'
+    | 'onboarding_marketplace_clicked'
+    | 'marketplace_opened'
+    | 'marketplace_category_selected'
+    | 'batch_started'
+    | 'batch_completed'
+    | 'batch_published'
     | 'nav_opened'
     | 'catalogue_loaded'
     | 'error_shown'
@@ -51,17 +78,17 @@ export async function trackEvent(
         'Content-Type': 'application/json',
         'X-Session-ID': getSessionId()
       },
-      body: JSON.stringify({ event_name: eventName, properties })
+      body: JSON.stringify({ event_name: eventName, properties: { ...properties, ...deviceContext() } })
     })
   } catch {
     // Analytics must never break a product flow.
   }
 }
 
-export async function trackSessionStarted(): Promise<void> {
+export async function trackSessionStarted(entrySource: EntrySource): Promise<void> {
   if (sessionStorage.getItem(SESSION_STARTED_KEY)) return
   sessionStorage.setItem(SESSION_STARTED_KEY, '1')
-  await trackEvent('session_started')
+  await trackEvent('session_started', { entry_source: entrySource })
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -190,14 +217,14 @@ export async function updateListing(listingId: string, draft: ListingEditDraft):
   return response.json() as Promise<Listing>
 }
 
-export async function fetchListings(query = '', category?: ListingCategory, limit?: number, offset = 0): Promise<Listing[]> {
+export async function fetchListings(query = '', category?: ListingCategory, limit?: number, offset = 0, entrySource: EntrySource = 'marketplace'): Promise<Listing[]> {
   const started = performance.now()
   const url = new URL('/api/listings', window.location.origin)
   if (query.trim()) url.searchParams.set('q', query.trim())
   if (category) url.searchParams.set('category', category)
   if (limit) url.searchParams.set('limit', String(limit))
   if (offset) url.searchParams.set('offset', String(offset))
-  const response = await fetch(url, { headers: { 'X-Session-ID': getSessionId() } })
+  const response = await fetch(url, { headers: journeyHeaders(entrySource) })
   if (!response.ok) throw new Error(await parseError(response))
   const rows = await response.json() as Listing[]
   void trackEvent('catalogue_loaded', {
@@ -224,9 +251,9 @@ export async function fetchLatestListings(limit: number): Promise<Listing[]> {
   return response.json() as Promise<Listing[]>
 }
 
-export async function fetchListing(listingId: string): Promise<Listing> {
+export async function fetchListing(listingId: string, entrySource: EntrySource = 'marketplace'): Promise<Listing> {
   const response = await fetch(`/api/listings/${encodeURIComponent(listingId)}`, {
-    headers: { 'X-Session-ID': getSessionId() }
+    headers: journeyHeaders(entrySource)
   })
   if (!response.ok) throw new Error(await parseError(response))
   return response.json() as Promise<Listing>
@@ -369,6 +396,14 @@ export async function fetchAdminMetrics(token: string): Promise<AdminMetrics> {
   })
   if (!response.ok) throw new Error(await parseAdminError(response))
   return response.json() as Promise<AdminMetrics>
+}
+
+export async function fetchAdminJourneys(token: string): Promise<AdminJourneys> {
+  const response = await fetch('/api/admin/journeys', {
+    headers: { 'X-Admin-Token': token }
+  })
+  if (!response.ok) throw new Error(await parseAdminError(response))
+  return response.json() as Promise<AdminJourneys>
 }
 
 export async function updateAdminRouting(

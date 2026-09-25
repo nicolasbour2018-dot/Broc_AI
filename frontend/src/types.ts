@@ -195,3 +195,23 @@ export interface AdminMetrics {
     completed_at: string | null
   }>
 }
+
+export type JourneyStage = 'session_started' | 'onboarding_viewed' | 'onboarding_marketplace_clicked' | 'marketplace_opened' | 'marketplace_category_selected' | 'search_performed' | 'listing_viewed'
+export type JourneyContext = 'visitor' | 'seller' | 'unknown'
+
+export interface JourneyWindow {
+  since: string
+  until: string
+  segments: Record<JourneyContext, {
+    sessions: Record<JourneyStage, number>
+    views: { own: number; other: number; unknown: number }
+  }>
+  batches: { started: number; completed: number; published: number; published_items: number; failed_items: number }
+}
+
+export interface AdminJourneys {
+  generated_at: string
+  timezone: 'Europe/Paris'
+  recent: JourneyWindow
+  today: JourneyWindow
+}

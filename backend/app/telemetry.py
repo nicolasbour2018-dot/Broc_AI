@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import SessionLocal, engine, get_db
+from .journeys import journey_metrics
 from .models import AiJob, AssistantScan, Event, Listing, MetricSnapshot, utcnow
 
 router = APIRouter(prefix="/api", tags=["telemetry"])
@@ -50,6 +51,13 @@ def _max_fun_in_flight() -> int:
 
 ClientEventName = Literal[
     "session_started",
+    "onboarding_viewed",
+    "onboarding_marketplace_clicked",
+    "marketplace_opened",
+    "marketplace_category_selected",
+    "batch_started",
+    "batch_completed",
+    "batch_published",
     "nav_opened",
     "catalogue_loaded",
     "error_shown",
@@ -373,6 +381,11 @@ def admin_diagnostics(db: Session = Depends(get_db)) -> dict[str, Any]:
 @router.get("/admin/metrics", dependencies=[Depends(_require_admin_token)])
 def admin_metrics(db: Session = Depends(get_db)) -> dict[str, Any]:
     return _collect_admin_metrics(db)
+
+
+@router.get("/admin/journeys", dependencies=[Depends(_require_admin_token)])
+def admin_journeys(db: Session = Depends(get_db)) -> dict[str, Any]:
+    return journey_metrics(db, utcnow())
 
 
 def _collect_admin_metrics(db: Session) -> dict[str, Any]:

@@ -94,3 +94,38 @@ Les champs suivants restent explicitement à `null` et sont listés dans `report
 - `fun_cooldown_seconds` : aucun cooldown Fun effectif n'est implémenté dans le runtime actuel.
 
 Une erreur de persistance d'un snapshot est journalisée avec une trace par le backend, mais ne coupe pas l'application. Les snapshots suivants continuent d'être tentés.
+
+## Parcours P10/P11
+
+Les événements `onboarding_viewed`, `onboarding_marketplace_clicked`, `marketplace_opened`, `marketplace_category_selected`, `batch_started`, `batch_completed` et `batch_published` complètent les événements existants `session_started`, `search_performed` et `listing_viewed`. L'export `events` existant conserve leurs propriétés JSON. `device_context` vaut `visitor` ou `seller` selon le stand confirmé sur l'appareil ; `seller_stand` est nul pour un visiteur. `entry_source` indique le point d'entrée dans le parcours. Sur `listing_viewed`, `listing_stand` provient de l'annonce en base et `is_own_listing` compare les deux stands. `batch_id` relie les étapes d'une série ; les tentatives de publication successives gardent le même identifiant.
+
+Pour reconstruire l'ordre des actions d'une session dans PostgreSQL :
+
+```sql
+SELECT session_id, created_at, event_name,
+       properties->>'device_context' AS device_context,
+       properties->>'seller_stand' AS seller_stand,
+       properties->>'entry_source' AS entry_source,
+       properties->>'listing_stand' AS listing_stand,
+       properties->>'is_own_listing' AS is_own_listing,
+       properties->>'batch_id' AS batch_id
+FROM events
+WHERE session_id = :session_id
+ORDER BY created_at, id;
+```
+
+La synthèse ci-dessous compte les sessions distinctes par contexte au moment de l'événement. Une sélection de catégorie ne compte pas comme une recherche saisie. Les étapes catégorie et recherche sont des branches possibles du parcours, pas une séquence obligatoire.
+
+```sql
+SELECT COALESCE(properties->>'device_context', 'unknown') AS device_context,
+       COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'marketplace_opened') AS market_sessions,
+       COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'marketplace_category_selected') AS category_sessions,
+       COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'search_performed' AND (properties->>'query_length')::int > 0) AS search_sessions,
+       COUNT(DISTINCT session_id) FILTER (WHERE event_name = 'listing_viewed') AS listing_sessions,
+       COUNT(*) FILTER (WHERE event_name = 'listing_viewed' AND properties->>'is_own_listing' = 'false' AND properties->>'device_context' IN ('visitor', 'seller')) AS qualified_views
+FROM events
+WHERE created_at >= (date_trunc('day', now() AT TIME ZONE 'Europe/Paris') AT TIME ZONE 'Europe/Paris')
+GROUP BY 1;
+```
+
+La section « Parcours » du dashboard admin lit `GET /api/admin/journeys` avec le token admin. Elle présente les dernières 15 minutes et le cumul depuis minuit en heure de Paris ; elle est chargée à l'ouverture et actualisée toutes les 15 minutes. Les événements antérieurs à cette instrumentation restent « non classés » ; aucune valeur vendeur ou visiteur n'est déduite rétroactivement. Les compteurs de vues du vendeur et de son PDF excluent ces événements non classés ainsi que les vues de son propre stand. Sans authentification vendeur, `seller` désigne un appareil avec stand confirmé, pas une identité vérifiée.

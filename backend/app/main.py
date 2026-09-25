@@ -10,6 +10,7 @@ from .categories import LISTING_CATEGORIES, ListingCategory, normalize_category
 from .config import settings
 from .db import engine, get_db, init_db
 from .funlab import router as funlab_router
+from .journeys import device_properties, qualified_listing_view_counts
 from .models import AiJob, AssistantScan, Event, Listing, utcnow
 from .schemas import (
     AiJobOut,
@@ -179,19 +180,6 @@ def enqueue_ai_job(
     db.commit()
     db.refresh(job)
     return ai_job_out(db, job)
-
-
-def listing_view_counts(db: Session, listing_ids: list[str]) -> dict[str, int]:
-    """Count `listing_viewed` events per listing in SQL rather than scanning every event."""
-    if not listing_ids:
-        return {}
-    listing_id = Event.properties["listing_id"].as_string()
-    rows = db.execute(
-        select(listing_id, func.count(Event.id))
-        .where(Event.event_name == "listing_viewed", listing_id.in_(listing_ids))
-        .group_by(listing_id)
-    ).all()
-    return {str(key): int(count) for key, count in rows}
 
 
 def listing_out(listing: Listing, view_count: int | None = None) -> ListingOut:
@@ -366,7 +354,7 @@ def seller_listings(
         .order_by(Listing.sold_at.is_not(None), Listing.created_at.desc())
     )
     rows = list(db.scalars(statement).all())
-    views = listing_view_counts(db, [item.id for item in rows])
+    views = qualified_listing_view_counts(db, [item.id for item in rows])
     emit_event(db, session_id(x_session_id), "seller_listings_opened", {"stand": stand, "count": len(rows)})
     db.commit()
     return [listing_out(item, views.get(item.id, 0)) for item in rows]
@@ -455,6 +443,9 @@ def list_listings(
     limit: int | None = Query(default=None, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     x_session_id: str | None = Header(default=None),
+    x_device_context: str | None = Header(default=None),
+    x_seller_stand: str | None = Header(default=None),
+    x_entry_source: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> list[ListingOut]:
     statement = select(Listing).where(Listing.sold_at.is_(None))
@@ -477,7 +468,12 @@ def list_listings(
         statement = statement.offset(offset)
     rows = list(db.scalars(statement).all())
     if (cleaned or category is not None) and offset == 0:
-        emit_event(db, session_id(x_session_id), "search_performed", {"query_length": len(cleaned), "category": category.value if category else None, "results": len(rows)})
+        emit_event(db, session_id(x_session_id), "search_performed", {
+            "query_length": len(cleaned),
+            "category": category.value if category else None,
+            "results": len(rows),
+            **device_properties(x_device_context, x_seller_stand, x_entry_source),
+        })
         db.commit()
     return [listing_out(item) for item in rows]
 
@@ -502,11 +498,21 @@ def listing_category_counts(db: Session = Depends(get_db)) -> ListingCategoryCou
 def get_listing(
     listing_id: str,
     x_session_id: str | None = Header(default=None),
+    x_device_context: str | None = Header(default=None),
+    x_seller_stand: str | None = Header(default=None),
+    x_entry_source: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ) -> ListingOut:
     listing = db.get(Listing, listing_id)
     if listing is None or listing.sold_at is not None:
         raise HTTPException(status_code=404, detail="Annonce introuvable.")
-    emit_event(db, session_id(x_session_id), "listing_viewed", {"listing_id": listing.id})
+    context = device_properties(x_device_context, x_seller_stand, x_entry_source)
+    is_own_listing = context["seller_stand"] == listing.stand_number if context["device_context"] != "unknown" else None
+    emit_event(db, session_id(x_session_id), "listing_viewed", {
+        "listing_id": listing.id,
+        "listing_stand": listing.stand_number,
+        "is_own_listing": is_own_listing,
+        **context,
+    })
     db.commit()
     return listing_out(listing)

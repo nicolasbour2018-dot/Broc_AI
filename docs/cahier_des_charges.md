@@ -242,7 +242,7 @@ Contraintes :
 
 ## 8. Instrumentation et données à récupérer
 
-L'analyse sera réalisée **après** l'événement. Brocai doit donc surtout produire des données propres et exportables.
+L'analyse détaillée sera réalisée **après** l'événement. Une synthèse des parcours visiteur/vendeur est également consultable pendant la brocante dans le dashboard admin, actualisée toutes les 15 minutes. Brocai doit produire des données propres et exportables.
 
 ### 8.1 Événements produit Brocai
 
