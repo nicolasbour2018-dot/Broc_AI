@@ -21,7 +21,7 @@ function createSessionId(): string {
   return `brocai-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 }
 
-function getSessionId(): string {
+export function getSessionId(): string {
   let value = sessionStorage.getItem(SESSION_KEY)
   if (!value) {
     value = createSessionId()
@@ -124,7 +124,7 @@ async function waitForAiJob<T>(initial: AiJob<T>, onProgress?: ProgressCallback)
   return job.result
 }
 
-export async function analyzeSellerPhoto(file: File, onProgress?: ProgressCallback): Promise<SellerAnalysis> {
+export async function submitSellerPhoto(file: File): Promise<AiJob<SellerAnalysis>> {
   const body = new FormData()
   body.append('photo', file)
   const response = await fetch('/api/seller/analyze', {
@@ -133,8 +133,25 @@ export async function analyzeSellerPhoto(file: File, onProgress?: ProgressCallba
     body
   })
   if (!response.ok) throw new Error(await parseError(response))
-  const job = await response.json() as AiJob<SellerAnalysis>
-  return waitForAiJob(job, onProgress)
+  return response.json() as Promise<AiJob<SellerAnalysis>>
+}
+
+export async function followSellerJob(jobId: string, onProgress?: ProgressCallback): Promise<AiJob<SellerAnalysis>> {
+  let job = await fetchAiJob<SellerAnalysis>(jobId)
+  onProgress?.(job)
+  let transientFailures = 0
+  while (job.status === 'queued' || job.status === 'running') {
+    await new Promise(resolve => window.setTimeout(resolve, POLL_INTERVAL_MS))
+    try {
+      job = await fetchAiJob<SellerAnalysis>(jobId)
+      transientFailures = 0
+      onProgress?.(job)
+    } catch (error) {
+      transientFailures += 1
+      if (transientFailures >= 8) throw error
+    }
+  }
+  return job
 }
 
 export async function publishListing(draft: ListingDraft): Promise<Listing> {

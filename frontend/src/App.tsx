@@ -1,13 +1,15 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, downloadSellerReport, fetchLatestListings, fetchListing, fetchListingCategoryCounts, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
+import { analyzeAssistantPhoto, askAssistantQuestion, downloadSellerReport, fetchLatestListings, fetchListing, fetchListingCategoryCounts, fetchListings, fetchSellerListings, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
 import Admin from './Admin'
 import Showroom from './Showroom'
 import FunLab from './FunLab'
-import { DEFAULT_CATEGORY, LISTING_CATEGORIES } from './categories'
+import { LISTING_CATEGORIES } from './categories'
 import { clearSellerOnboarding, readSellerOnboarding, saveSellerOnboarding } from './sellerOnboarding'
+import { MAX_SELLER_PHOTOS, useSellerBatch } from './sellerBatch'
+import type { SellerBatchController, SellerBatchItem } from './sellerBatch'
 import type { SellerOnboarding } from './sellerOnboarding'
 import type { ListingCategory } from './categories'
-import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingCategoryCounts, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
+import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingCategoryCounts, ListingEditDraft, SellerAnalysis } from './types'
 
 type View = 'welcome' | 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom' | 'funlab'
 type SellerMode = 'dashboard' | 'create' | 'edit'
@@ -48,17 +50,6 @@ function Welcome({ enter }: { enter: (view: 'market' | 'seller') => void }) {
   )
 }
 
-const EMPTY_DRAFT: ListingDraft = {
-  image_key: '',
-  title: '',
-  description: '',
-  fun_line: '',
-  category: DEFAULT_CATEGORY,
-  price_eur: '',
-  stand_number: '',
-  seller_alias: ''
-}
-
 const CONFIDENCE_LABELS: Record<SellerAnalysis['confidence'], string> = {
   low: 'faible',
   medium: 'moyenne',
@@ -92,6 +83,22 @@ function queueMessage(progress: AiJobProgress | null, action = 'Analyse'): strin
   }
   if (progress.status === 'running') return `${action} en cours…`
   return `${action} terminée`
+}
+
+function sellerBatchLabel(item: SellerBatchItem): string {
+  switch (item.status) {
+    case 'selected': return 'Photo prête'
+    case 'uploading': return 'Envoi de la photo…'
+    case 'queued': return 'Analyse en attente'
+    case 'running': return 'Analyse en cours'
+    case 'tracking_error': return 'Suivi interrompu'
+    case 'analysis_error': return 'Analyse à réessayer'
+    case 'ready': return 'Brouillon à relire'
+    case 'reviewed': return 'Brouillon validé'
+    case 'publishing': return 'Publication en cours…'
+    case 'publish_error': return 'Publication à réessayer'
+    case 'published': return 'Annonce publiée'
+  }
 }
 
 const HOME_ILLUSTRATIONS = {
@@ -342,23 +349,30 @@ function SellerOnboardingFlow({ goHome, onConfirmed }: { goHome: () => void; onC
   )
 }
 
-function Seller({ goHome, openMarket, entry }: { goHome: () => void; openMarket: () => void; entry: SellerEntry }) {
+function Seller({ goHome, openMarket, entry, sellerBatch }: { goHome: () => void; openMarket: () => void; entry: SellerEntry; sellerBatch: SellerBatchController }) {
   const [onboarding, setOnboarding] = useState(readSellerOnboarding)
   const standNumber = onboarding?.stand ?? ''
   const sellerAlias = onboarding?.alias ?? ''
   const [confirmingStandChange, setConfirmingStandChange] = useState(false)
   const [sellerMode, setSellerMode] = useState<SellerMode>(entry)
   const [sellerItems, setSellerItems] = useState<Listing[]>([])
-  const [analysis, setAnalysis] = useState<SellerAnalysis | null>(null)
-  const [draft, setDraft] = useState<ListingDraft>(EMPTY_DRAFT)
   const [editing, setEditing] = useState<Listing | null>(null)
   const [editDraft, setEditDraft] = useState<ListingEditDraft | null>(null)
   const [preview, setPreview] = useState(false)
-  const [published, setPublished] = useState<Listing | null>(null)
+  const [activeItemId, setActiveItemId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
-  const [aiProgress, setAiProgress] = useState<AiJobProgress | null>(null)
   const [error, setError] = useState('')
+  const batch = sellerBatch.batch.stand === standNumber ? sellerBatch.batch : null
+  const batchItems = batch?.items ?? []
+  const activeItem = batchItems.find(item => item.id === activeItemId)
+  const batchBusy = batchItems.some(item => ['uploading', 'queued', 'running', 'publishing'].includes(item.status))
+  const unreviewed = batchItems.some(item => item.status === 'ready')
+  const publishable = batchItems.filter(item => ['reviewed', 'publish_error'].includes(item.status))
+
+  useEffect(() => {
+    if (standNumber) sellerBatch.ensureStand(standNumber, sellerAlias)
+  }, [standNumber, sellerAlias, sellerBatch.ensureStand])
 
   async function loadSellerItems(stand: string) {
     setLoading(true); setError('')
@@ -382,24 +396,21 @@ function Seller({ goHome, openMarket, entry }: { goHome: () => void; openMarket:
     setOnboarding(null)
     setConfirmingStandChange(false)
     setSellerItems([])
-    setAnalysis(null)
     setEditing(null)
     setEditDraft(null)
-    setPublished(null)
+    sellerBatch.reset()
+    setActiveItemId(null)
     setPreview(false)
-    setAiProgress(null)
     setSellerMode('dashboard')
   }
 
   function startCreate() {
-    setAnalysis(null)
     setEditing(null)
     setEditDraft(null)
-    setPublished(null)
     setPreview(false)
+    setActiveItemId(null)
     setError('')
-    setAiProgress(null)
-    setDraft({ ...EMPTY_DRAFT, stand_number: standNumber, seller_alias: sellerAlias })
+    if (batch?.started && batchItems.every(item => item.status === 'published')) sellerBatch.reset(standNumber, sellerAlias)
     setSellerMode('create')
   }
 
@@ -419,49 +430,12 @@ function Seller({ goHome, openMarket, entry }: { goHome: () => void; openMarket:
   }
 
   async function backToDashboard() {
-    setAnalysis(null)
     setEditing(null)
     setEditDraft(null)
-    setPublished(null)
+    setActiveItemId(null)
     setPreview(false)
-    setAiProgress(null)
     setSellerMode('dashboard')
     await loadSellerItems(standNumber)
-  }
-
-  async function choosePhoto(file?: File) {
-    if (!file) return
-    setLoading(true); setError(''); setAiProgress(null)
-    try {
-      const result = await analyzeSellerPhoto(file, setAiProgress)
-      setAnalysis(result)
-      setDraft({
-        image_key: result.image_key,
-        title: result.title,
-        description: result.description,
-        fun_line: result.fun_line || '',
-        category: result.category,
-        price_eur: String(result.suggested_price_eur),
-        stand_number: standNumber,
-        seller_alias: sellerAlias
-      })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analyse impossible.')
-    } finally {
-      setLoading(false)
-      setAiProgress(null)
-    }
-  }
-
-  async function publish() {
-    setLoading(true); setError('')
-    try {
-      setPublished(await publishListing({ ...draft, stand_number: standNumber }))
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Publication impossible.')
-    } finally {
-      setLoading(false)
-    }
   }
 
   async function saveEdit(e: FormEvent) {
@@ -499,17 +473,7 @@ function Seller({ goHome, openMarket, entry }: { goHome: () => void; openMarket:
     }
   }
 
-  if (!standNumber) return <SellerOnboardingFlow goHome={goHome} onConfirmed={setOnboarding} />
-
-  if (published) return (
-    <main className="screen"><button className="back" onClick={() => void backToDashboard()}>← Mes annonces</button>
-      <div className="success-mark">✓</div><h2>Annonce publiée</h2>
-      <p className="muted">Elle est maintenant visible sur le marché BrocAI tant qu’elle n’est pas marquée comme vendue.</p>
-      <article className="listing-card featured"><img src={published.image_url} alt="" /><div><span className="pill">Stand {published.stand_number}</span><h3>{published.title}</h3><strong>{formatPrice(published.price_eur)}</strong>{published.fun_line && <p className="fun-line final-fun-line">✦ {published.fun_line}</p>}</div></article>
-      <button className="primary" onClick={() => void backToDashboard()}>Voir mes annonces</button>
-      <button className="secondary" onClick={openMarket}>Voir le marché BrocAI</button>
-    </main>
-  )
+  if (!standNumber) return <SellerOnboardingFlow goHome={goHome} onConfirmed={value => { sellerBatch.ensureStand(value.stand, value.alias); setOnboarding(value) }} />
 
   if (sellerMode === 'dashboard') return (
     <main className="screen wide"><BackButton onClick={goHome} />
@@ -520,7 +484,7 @@ function Seller({ goHome, openMarket, entry }: { goHome: () => void; openMarket:
           <div><button className="secondary compact" type="button" onClick={changeStand}>Changer de stand</button><button className="text-action" type="button" onClick={() => setConfirmingStandChange(false)}>Annuler</button></div>
         </div>
       )}
-      <button className="primary" type="button" onClick={startCreate}>＋ Ajouter un objet</button>
+      <button className="primary" type="button" onClick={startCreate}>{batch?.started && batchItems.some(item => item.status !== 'published') ? 'Reprendre ma série' : '＋ Ajouter des objets'}</button>
       <div className="seller-section-title"><h3>Mes annonces</h3><span>{sellerItems.filter(item => item.sold_at === null).length} en vente · {sellerItems.filter(item => item.sold_at !== null).length} vendue(s)</span></div>
       {error && <p className="error">{error}</p>}
       {loading ? <p className="muted">Chargement…</p> : sellerItems.length === 0 ? <div className="empty"><strong>Aucune annonce sur ce stand.</strong><span>Ajoutez votre premier objet pour le faire apparaître sur le marché BrocAI.</span></div> :
@@ -564,40 +528,76 @@ function Seller({ goHome, openMarket, entry }: { goHome: () => void; openMarket:
     </main>
   )
 
-  if (preview && analysis) return (
-    <main className="screen"><button className="back" onClick={() => setPreview(false)}>← Modifier</button><p className="eyebrow">Aperçu avant publication</p><h2>{draft.title}</h2>
-      <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Objet à vendre" /></div>
-      <div className="price-row"><strong>{formatPrice(draft.price_eur)}</strong><span className="pill">Stand {standNumber}</span></div>
-      <p>{draft.description}</p>{draft.fun_line && <p className="fun-line final-fun-line">✦ {draft.fun_line}</p>}{draft.category && <p className="muted">{draft.category}</p>}
-      {error && <p className="error">{error}</p>}
-      <button className="primary" disabled={loading} onClick={publish}>{loading ? 'Publication…' : 'Publier l’annonce'}</button>
-      <button className="secondary" onClick={() => setPreview(false)}>Modifier</button>
-    </main>
-  )
+  if (activeItem?.draft && activeItem.analysis && ['ready', 'reviewed'].includes(activeItem.status)) {
+    const draft = activeItem.draft
+    const analysis = activeItem.analysis
+    if (preview) return (
+      <main className="screen"><button className="back" type="button" onClick={() => setPreview(false)}>← Modifier</button><p className="eyebrow">Aperçu avant publication</p><h2>{draft.title}</h2>
+        <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Objet à vendre" /></div>
+        <div className="price-row"><strong>{formatPrice(draft.price_eur)}</strong><span className="pill">Stand {standNumber}</span></div>
+        <p>{draft.description}</p>{draft.fun_line && <p className="fun-line final-fun-line">✦ {draft.fun_line}</p>}{draft.category && <p className="muted">{draft.category}</p>}
+        <button className="primary" type="button" onClick={() => { sellerBatch.markReviewed(activeItem.id); setActiveItemId(null); setPreview(false) }}>Valider ce brouillon</button>
+        <button className="secondary" type="button" onClick={() => setPreview(false)}>Modifier</button>
+      </main>
+    )
+    return (
+      <main className="screen"><button className="back" type="button" onClick={() => setActiveItemId(null)}>← Ma série</button><p className="eyebrow">Brouillon {batchItems.indexOf(activeItem) + 1} sur {batchItems.length}</p><h2>Vérifiez avant de publier</h2>
+        <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Objet à vendre" /></div>
+        <div className="stand-summary"><span>Publication sur</span><strong>Stand {standNumber}</strong></div>
+        {analysis.analysis_mode === 'mock-fallback' ? <div className="notice"><strong>Analyse assistée indisponible pour cette photo.</strong><span> Vérifiez le brouillon avant de publier.</span></div> : <div className="analysis-meta"><span>Analyse assistée</span><strong>Confiance {CONFIDENCE_LABELS[analysis.confidence]}</strong></div>}
+        <form onSubmit={e => { e.preventDefault(); setPreview(true) }} className="form-stack">
+          <label>Titre<input required maxLength={160} value={draft.title} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, title: e.target.value })} /></label>
+          <label>Description<textarea required maxLength={1200} rows={4} value={draft.description} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, description: e.target.value })} /></label>
+          <label>Petite phrase sympa <span className="muted">(facultatif)</span><input maxLength={180} value={draft.fun_line} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, fun_line: e.target.value })} /></label>
+          <label>Catégorie<select value={draft.category} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, category: e.target.value as ListingCategory })}>{LISTING_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></label>
+          <label>Prix final (€)<input required min="0" step="0.5" inputMode="decimal" type="number" value={draft.price_eur} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, price_eur: e.target.value })} /><small>Suggestion initiale : {analysis.suggested_price_eur} € · fourchette {analysis.price_range_eur.min}–{analysis.price_range_eur.max} €</small></label>
+          <label><span>Pseudo vendeur <span className="muted">(facultatif)</span></span><input maxLength={80} value={draft.seller_alias} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, seller_alias: e.target.value })} /></label>
+          <button className="primary" type="submit">Prévisualiser l’annonce</button>
+        </form>
+      </main>
+    )
+  }
 
-  if (analysis) return (
-    <main className="screen"><button className="back" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Brouillon éditable</p><h2>Vérifiez avant de publier</h2>
-      <div className="stand-summary"><span>Publication sur</span><strong>Stand {standNumber}</strong></div>
-      {analysis.analysis_mode === 'mock-fallback' ? <div className="notice"><strong>Analyse assistée indisponible pour cette photo.</strong><span> Un brouillon de secours a été préparé : vérifiez simplement les informations avant de publier.</span></div> : <div className="analysis-meta"><span>Analyse assistée</span><strong>Confiance {CONFIDENCE_LABELS[analysis.confidence]}</strong></div>}
-      {analysis.fun_line && analysis.analysis_mode !== 'mock-fallback' && <p className="fun-line">✦ {analysis.fun_line}</p>}
-      <form onSubmit={(e) => { e.preventDefault(); setPreview(true) }} className="form-stack">
-        <label>Titre<input required value={draft.title} onChange={e => setDraft({ ...draft, title: e.target.value })} /></label>
-        <label>Description<textarea required rows={4} value={draft.description} onChange={e => setDraft({ ...draft, description: e.target.value })} /></label>
-        <label>Petite phrase sympa <span className="muted">(facultatif)</span><input maxLength={180} value={draft.fun_line} onChange={e => setDraft({ ...draft, fun_line: e.target.value })} /></label>
-        <label>Catégorie<select value={draft.category} onChange={e => setDraft({ ...draft, category: e.target.value as ListingCategory })}>{LISTING_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></label>
-        <label>Prix final (€)<input required min="0" step="0.5" inputMode="decimal" type="number" value={draft.price_eur} onChange={e => setDraft({ ...draft, price_eur: e.target.value })} /><small>Suggestion initiale : {analysis.suggested_price_eur} € · fourchette {analysis.price_range_eur.min}–{analysis.price_range_eur.max} €</small></label>
-        <label><span>Pseudo vendeur <span className="muted">(facultatif)</span></span><input value={draft.seller_alias} onChange={e => setDraft({ ...draft, seller_alias: e.target.value })} /></label>
-        <button className="primary" type="submit">Prévisualiser l’annonce</button>
-      </form>
-    </main>
-  )
+  const analyzedCount = batchItems.filter(item => ['ready', 'reviewed', 'publishing', 'publish_error', 'published'].includes(item.status)).length
+  const completedCount = batchItems.filter(item => item.status === 'published').length
+  const failedCount = batchItems.filter(item => ['analysis_error', 'tracking_error'].includes(item.status)).length
+  const canStartNew = Boolean(batch?.started && !batchBusy && !unreviewed && publishable.length === 0 && batchItems.every(item => ['published', 'analysis_error', 'tracking_error'].includes(item.status)))
+
+  function addFiles(files: FileList | null) {
+    if (!files) return
+    const added = sellerBatch.addPhotos(Array.from(files))
+    setError(added < files.length ? `Limite de ${MAX_SELLER_PHOTOS} photos par série.` : '')
+  }
 
   return (
-    <main className="screen"><button className="back" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Je vends · Stand {standNumber}</p><h2>Photographiez votre objet</h2><p className="lead small">Une photo suffit pour préparer le brouillon de l’annonce.</p>
-      <label className="photo-drop"><span>📷</span><strong>{loading ? queueMessage(aiProgress) : 'Prendre une photo'}</strong><small>ou choisir une image dans la galerie</small><input disabled={loading} type="file" accept="image/*" capture="environment" onChange={e => choosePhoto(e.target.files?.[0])} /></label>
-      {loading && <div className="notice ai-queue-notice"><strong>{queueMessage(aiProgress)}</strong><span>Le marché BrocAI reste accessible pendant l’attente.</span>{aiProgress?.status === 'queued' && aiProgress.queue_size > 0 && <small>{aiProgress.queue_size} demande{aiProgress.queue_size > 1 ? 's' : ''} actuellement en attente.</small>}</div>}
+    <main className="screen"><button className="back" type="button" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Je vends · Stand {standNumber}</p><h2>Ma série d’objets</h2>
+      {!batch?.started ? <>
+        <p className="lead small">Prenez vos photos à la suite, puis lancez l’analyse en une fois. Jusqu’à {MAX_SELLER_PHOTOS} objets.</p>
+        <div className="batch-photo-actions">
+          <label className="photo-drop"><span>📷</span><strong>Prendre une photo</strong><input type="file" accept="image/*" capture="environment" onChange={e => { addFiles(e.target.files); e.target.value = '' }} /></label>
+          <label className="photo-drop"><span>▧</span><strong>Choisir dans la galerie</strong><input type="file" accept="image/*" multiple onChange={e => { addFiles(e.target.files); e.target.value = '' }} /></label>
+        </div>
+      </> : <p className="lead small">{analyzedCount} analyse{analyzedCount > 1 ? 's' : ''} terminée{analyzedCount > 1 ? 's' : ''} sur {batchItems.length}. Relisez chaque brouillon prêt avant publication.</p>}
+      {batchItems.length > 0 && <div className="batch-items">{batchItems.map((item: SellerBatchItem, index) => (
+        <article className="batch-item" key={item.id}>
+          <div className="batch-item-main">
+            {item.previewUrl ? <img src={item.previewUrl} alt={`Objet ${index + 1}`} /> : <div className="batch-photo-placeholder" aria-hidden="true">{index + 1}</div>}
+            <div><strong>Objet {index + 1}{item.draft ? ` · ${item.draft.title}` : ''}</strong><span>{sellerBatchLabel(item)}</span>{item.progress && ['queued', 'running'].includes(item.status) && <small>{queueMessage(item.progress)}</small>}</div>
+          </div>
+          {item.error && <p className="error batch-error">{item.error}</p>}
+          {!batch?.started && <div className="batch-item-actions"><label className="secondary compact batch-file-action">Remplacer<input type="file" accept="image/*" onChange={e => { const file = e.target.files?.[0]; if (file) sellerBatch.replacePhoto(item.id, file); e.target.value = '' }} /></label><button className="secondary compact" type="button" onClick={() => sellerBatch.removePhoto(item.id)}>Retirer</button></div>}
+          {item.status === 'analysis_error' && <div className="batch-item-actions">{item.file && <button className="secondary compact" type="button" onClick={() => void sellerBatch.submitItem(item.id)}>Réessayer l’analyse</button>}<label className="secondary compact batch-file-action">Choisir une photo<input type="file" accept="image/*" onChange={e => { const file = e.target.files?.[0]; if (file) void sellerBatch.submitItem(item.id, file); e.target.value = '' }} /></label></div>}
+          {item.status === 'tracking_error' && <button className="secondary compact" type="button" onClick={() => sellerBatch.retryTracking(item.id)}>Reprendre le suivi</button>}
+          {['ready', 'reviewed'].includes(item.status) && <button className="secondary compact" type="button" onClick={() => { setActiveItemId(item.id); setPreview(false) }}>{item.status === 'reviewed' ? 'Revoir le brouillon' : 'Relire le brouillon'}</button>}
+          {item.status === 'publish_error' && <button className="secondary compact" type="button" onClick={() => void sellerBatch.publishOne(item.id)}>Réessayer la publication</button>}
+        </article>
+      ))}</div>}
       {error && <p className="error">{error}</p>}
-      <button className="secondary" onClick={openMarket}>Voir le marché BrocAI</button>
+      {!batch?.started && <button className="primary" type="button" disabled={batchItems.length === 0} onClick={() => void sellerBatch.startAnalysis()}>{batchItems.length === 0 ? 'Ajoutez une photo pour analyser' : batchItems.length === 1 ? 'Analyser mon objet' : `Analyser mes ${batchItems.length} objets`}</button>}
+      {batch?.started && publishable.length > 0 && <button className="primary" type="button" disabled={batchBusy || unreviewed} onClick={() => void sellerBatch.publishAll()}>Publier {publishable.length} annonce{publishable.length > 1 ? 's' : ''}</button>}
+      {batch?.started && unreviewed && <p className="muted batch-hint">Relisez tous les brouillons prêts avant de publier.</p>}
+      {canStartNew && <><div className="notice"><strong>{completedCount} annonce{completedCount > 1 ? 's' : ''} publiée{completedCount > 1 ? 's' : ''}.</strong><span>{failedCount > 0 ? ` ${failedCount} photo${failedCount > 1 ? 's' : ''} à réessayer ou à laisser de côté.` : ' Votre série est terminée.'}</span></div><button className="primary" type="button" onClick={() => sellerBatch.reset(standNumber, sellerAlias)}>{completedCount > 0 ? 'Nouvelle série' : 'Recommencer une série'}</button>{completedCount > 0 && <button className="secondary" type="button" onClick={() => void backToDashboard()}>Voir mes annonces</button>}</>}
+      <button className="secondary" type="button" onClick={openMarket}>Voir le marché BrocAI</button>
     </main>
   )
 }
@@ -970,6 +970,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
 
 export default function App() {
   const [view, setView] = useState<View>(initialView)
+  const sellerBatch = useSellerBatch()
   const [sellerEntry, setSellerEntry] = useState<SellerEntry>('dashboard')
   // Listing tapped on the home: the market opens directly on its detail.
   const [marketEntry, setMarketEntry] = useState<Listing | null>(null)
@@ -1018,11 +1019,11 @@ export default function App() {
     if (view === 'admin') return <Admin goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'showroom') return <Showroom exitShowroom={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'funlab') return <FunLab goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
-    if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => { setMarketEntry(null); setMarketMode('recent'); setView('market') }} entry={sellerEntry} />
+    if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => { setMarketEntry(null); setMarketMode('recent'); setView('market') }} entry={sellerEntry} sellerBatch={sellerBatch} />
     if (view === 'market') return <Market goHome={() => setView('home')} initialListing={marketEntry} initialMode={marketMode} />
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
     return <Home navigate={setView} openMarket={mode => { setMarketEntry(null); setMarketMode(mode); setView('market') }} openSeller={entry => { setSellerEntry(entry); setView('seller') }} openListing={item => { setMarketEntry(item); setMarketMode('recent'); setView('market') }} />
-  }, [view, marketEntry, marketMode, sellerEntry])
+  }, [view, marketEntry, marketMode, sellerEntry, sellerBatch])
   const showProductFooter = view !== 'welcome' && view !== 'home' && view !== 'admin' && view !== 'showroom'
 
   return (
