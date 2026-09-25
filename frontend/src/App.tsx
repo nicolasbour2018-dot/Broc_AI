@@ -242,10 +242,17 @@ function Home({ navigate, openMarket, openSeller, openListing }: { navigate: (vi
           {sellerStand && <HomeJourneyCard kind="market" title="Voir les objets" description="Explorez les annonces de la brocante" onClick={() => openMarket('recent')} />}
           <HomeJourneyCard kind="assistant" title="J’analyse" description="Comparer, estimer et mieux négocier" onClick={() => navigate('assistant')} />
         </div>
-        <div className="home-secondary-actions">
-          <button type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>FunLab <HomeChevron /></button>
-          {!sellerStand && <button type="button" onClick={() => openSeller('dashboard')}>Je vends <HomeChevron /></button>}
-        </div>
+        {!sellerStand && <div className="home-secondary-actions">
+          <button type="button" onClick={() => openSeller('dashboard')}>Je vends <HomeChevron /></button>
+        </div>}
+      </section>
+
+      <section className="home-play" aria-labelledby="home-play-title">
+        <h2 id="home-play-title">Pour s’amuser</h2>
+        <button type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>
+          <span><strong>Fais parler ton objet</strong><small>Dans FunLab, invente-lui une histoire, un pouvoir ou une aventure.</small></span>
+          <HomeChevron />
+        </button>
       </section>
     </main>
   )
