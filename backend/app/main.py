@@ -1,3 +1,4 @@
+import re
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,7 +27,7 @@ from .schemas import (
     ListingUpdate,
 )
 from .seller_report import router as seller_report_router
-from .storage import image_exists, save_image
+from .storage import delete_image, image_exists, save_image
 from .telemetry import health_router, metric_snapshot_recorder, router as telemetry_router
 
 
@@ -434,6 +435,30 @@ def create_listing(
     db.commit()
     db.refresh(listing)
     return listing_out(listing)
+
+
+DRAFT_IMAGE_KEY = re.compile(r"^[0-9a-f]{32}\.[a-z0-9]{2,5}$")
+
+
+@app.delete("/api/seller/drafts/{image_key}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_seller_draft(
+    image_key: str,
+    x_session_id: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Frees the photo of a draft the seller deleted before publishing it.
+
+    A photo used by a listing is kept. Deleting a missing photo succeeds, so a retry is harmless.
+    The seller app only offers deletion once the draft's analysis has finished.
+    """
+    if not DRAFT_IMAGE_KEY.fullmatch(image_key):
+        raise HTTPException(status_code=400, detail="Photo de brouillon invalide.")
+    if db.scalar(select(Listing.id).where(Listing.image_key == image_key).limit(1)) is not None:
+        raise HTTPException(status_code=409, detail="Cette photo est utilisée par une annonce publiée.")
+    delete_image(image_key)
+    emit_event(db, session_id(x_session_id), "seller_draft_deleted", {})
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.get("/api/listings", response_model=list[ListingOut])
