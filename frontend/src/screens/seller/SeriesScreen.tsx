@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import CameraCapture from '../../camera/CameraCapture'
 import type { CameraUnavailable } from '../../camera/CameraCapture'
-import { goBack, navigate } from '../../navigation'
+import { goBack, navigate, openSeriesCamera } from '../../navigation'
 import { BUSY_STATUSES, MAX_SELLER_PHOTOS, PUBLISHABLE_STATUSES } from '../../sellerBatch'
 import type { SellerBatchController, SellerBatchItem } from '../../sellerBatch'
 import { Icon } from '../../ui/icons'
@@ -39,7 +39,7 @@ export default function SeriesScreen({ camera, stand, alias, batch }: { camera: 
     // A finished series makes room for a new one before shooting again.
     if (items.length > 0 && items.every(item => item.status === 'published')) batch.reset(stand, alias)
     if (cameraUnavailable) return
-    navigate({ name: 'series', camera: true })
+    openSeriesCamera()
   }
 
   function addFiles(files: File[]) {
@@ -93,7 +93,7 @@ export default function SeriesScreen({ camera, stand, alias, batch }: { camera: 
   return (
     <>
       <Page className={`series${action ? ' has-action-bar' : ''}`}>
-        <TopBar onBack={() => goBack({ name: 'seller' })} backLabel="Mon stand" />
+        <TopBar onBack={() => goBack({ name: 'seller' })} />
         <Kicker>Stand {stand}</Kicker>
         <h1 className="page-title">Ma série de photos</h1>
 

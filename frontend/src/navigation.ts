@@ -117,6 +117,13 @@ export function navigate(route: Route, options: { replace?: boolean } = {}): voi
   window.dispatchEvent(new Event(CHANGE_EVENT))
 }
 
+// Opens the series camera with the series screen underneath it in history, so closing the camera
+// (one step back) lands on the photos just taken instead of the screen the camera was opened from.
+export function openSeriesCamera(): void {
+  if (currentRoute().name !== 'series') navigate({ name: 'series', camera: false })
+  navigate({ name: 'series', camera: true })
+}
+
 // Back inside the app when this entry was pushed by it, otherwise to a sensible parent screen
 // (a listing opened from a shared link has no in-app history to return to).
 export function goBack(fallback: Route): void {

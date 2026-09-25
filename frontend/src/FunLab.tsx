@@ -4,7 +4,8 @@ import type { AiJobProgress, AssistantAnalysis, FunQuestType, FunWishResult, Fun
 import { AiWait, PhotoPicker } from './ui/Ai'
 import { Icon } from './ui/icons'
 import type { IconName } from './ui/icons'
-import { Alert, Kicker, Page } from './ui/Page'
+import { goBack } from './navigation'
+import { Alert, Kicker, Page, TopBar } from './ui/Page'
 import './funlab.css'
 
 type ResultCard = FunWishResult & { photos?: string[] }
@@ -228,6 +229,7 @@ export default function FunLab() {
 
   if (!analysis) return (
     <Page className="fun-screen">
+      <TopBar onBack={() => goBack({ name: 'home' })} />
       <Kicker>FunLab · le jeu de la brocante</Kicker>
       <h1 className="page-title">Ton objet t’accorde 3 vœux</h1>
       <img className="fun-hero" src="/images/home/frame.webp" alt="" />
@@ -269,6 +271,7 @@ export default function FunLab() {
 
   return (
     <Page wide className="fun-screen">
+      <TopBar onBack={() => goBack({ name: 'home' })} />
       <button className="btn-link" type="button" onClick={reset}><Icon name="camera" size={20} /> Nouvel objet</button>
       <div className="fun-heading">
         <div><Kicker>FunLab · {analysis.name}</Kicker><h1 className="page-title">Choisis jusqu’à 3 vœux</h1></div>
