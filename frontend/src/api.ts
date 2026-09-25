@@ -199,6 +199,20 @@ export async function publishListing(draft: ListingDraft): Promise<Listing> {
   return response.json() as Promise<Listing>
 }
 
+// Frees the photo of a draft the seller deleted. Best effort: the draft is already gone from the phone,
+// and the server refuses (409) a photo that a published listing uses.
+export async function deleteSellerDraft(imageKey: string): Promise<void> {
+  try {
+    await fetch(`/api/seller/drafts/${encodeURIComponent(imageKey)}`, {
+      method: 'DELETE',
+      headers: { 'X-Session-ID': getSessionId() },
+      keepalive: true
+    })
+  } catch {
+    // An orphan photo is harmless; the flow must not fail on cleanup.
+  }
+}
+
 export async function updateListing(listingId: string, draft: ListingEditDraft): Promise<Listing> {
   const response = await fetch(`/api/seller/listings/${encodeURIComponent(listingId)}`, {
     method: 'PATCH',

@@ -1,70 +1,59 @@
-.fun-screen { --fun-purple:#5d4978; --fun-pink:#c55f79; --fun-gold:#d99c3b; }
-.fun-photo-drop { background:linear-gradient(145deg,#faf6ff,#fff6e7); border-color:#d9cbe3; }
-.fun-object-preview { margin-top:14px; height:180px; border-radius:18px; overflow:hidden; background:#ece9e0; }
-.fun-object-preview img { width:100%; height:100%; object-fit:cover; display:block; }
-.fun-heading,.fun-quest-head { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; }
-.fun-counter { display:grid; justify-items:end; gap:5px; color:#66695f; font-size:.78rem; }
-.fun-wish-dots { display:flex; gap:5px; }
-.fun-wish-dots span { width:30px; height:30px; display:grid; place-items:center; border-radius:50%; background:#ebe7df; color:#bbb5ab; }
-.fun-wish-dots span.active { background:#2a2d27; color:#fff3b5; }
-.fun-object-strip { display:grid; grid-template-columns:92px 1fr; gap:14px; align-items:center; padding:12px; margin:8px 0 22px; border-radius:18px; background:#f4f0e8; }
-.fun-object-strip img { width:92px; height:78px; border-radius:13px; object-fit:cover; }
-.fun-object-strip div { display:grid; gap:5px; min-width:0; }
-.fun-object-strip span { color:#6d7167; font-size:.84rem; line-height:1.35; }
-.fun-wish-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
-.fun-wish-card { border:1px solid #ddd6e3; border-radius:20px; padding:18px; background:#fff; text-align:left; color:inherit; display:grid; grid-template-columns:44px 1fr; gap:6px 10px; min-height:148px; align-content:start; transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease; }
-.fun-wish-card:hover:not(:disabled) { transform:translateY(-2px); border-color:#bda8cb; box-shadow:0 12px 30px rgba(72,51,91,.09); }
-.fun-wish-card:disabled { cursor:default; }
-.fun-wish-card.used { opacity:.58; background:#f4f2ed; }
-.fun-wish-card.quest { grid-column:1 / -1; border-color:#e4c98d; background:linear-gradient(135deg,#fff8e9,#fff 58%,#f8efff); }
-.fun-wish-icon { grid-row:1 / span 2; width:42px; height:42px; display:grid; place-items:center; border-radius:14px; background:#f1ebf6; font-size:1.35rem; }
-.fun-wish-card.quest .fun-wish-icon { background:#fff0c8; }
-.fun-wish-card strong { align-self:end; font-size:1.06rem; }
-.fun-wish-card small { grid-column:2; color:#6f7369; line-height:1.38; }
-.fun-wish-card em { grid-column:2; color:#68715d; font-size:.76rem; font-style:normal; font-weight:800; }
-.fun-quest-picker-title { grid-column:1 / -1; margin-top:9px; color:#8b6a2e; font-size:.75rem; font-weight:900; text-transform:uppercase; letter-spacing:.06em; }
-.fun-quest-picker { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:2px; }
-.fun-quest-picker > button { padding:11px; border-radius:13px; background:rgba(255,255,255,.82); border:1px solid #ead8b0; display:grid; gap:5px; cursor:pointer; color:inherit; text-align:left; }
-.fun-quest-picker b { font-size:.82rem; }
-.fun-quest-picker i { font-size:.7rem; line-height:1.3; color:#7c7569; font-style:normal; }
-.fun-quest-picker > button:focus-visible { outline:3px solid rgba(93,73,120,.28); outline-offset:2px; }
-.fun-quest-steps { display:grid; gap:11px; margin:22px 0 12px; }
-.fun-photo-step { position:relative; min-height:112px; padding:14px; border:1px dashed #cfc5d7; border-radius:18px; background:#faf7fc; display:grid; grid-template-columns:38px 1fr auto; gap:11px; align-items:center; cursor:pointer; overflow:hidden; }
-.fun-photo-step.has-photo { border-style:solid; background:#f4f0f6; }
-.fun-step-number { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; background:#2b2d28; color:white; font-weight:900; }
-.fun-photo-copy { display:grid; gap:5px; }
-.fun-photo-copy small { color:#6f7369; line-height:1.35; }
-.fun-photo-cta { border-radius:11px; background:white; border:1px solid #d8d1dc; padding:9px 11px; font-size:.76rem; font-weight:800; }
-.fun-photo-step img { width:92px; height:82px; object-fit:cover; border-radius:12px; }
-.fun-photo-step input { position:absolute; width:1px; height:1px; opacity:0; }
-.fun-privacy { margin:10px 0 2px; color:#6f7369; font-size:.78rem; line-height:1.45; }
-.fun-exhausted { margin:18px 0; }
-.fun-results { margin-top:30px; padding-top:24px; border-top:1px solid #e4dfd5; }
-.fun-results-head h3 { margin-top:4px; }
-.fun-result-card { margin-top:13px; border-radius:22px; overflow:hidden; background:#252721; color:white; display:grid; grid-template-columns:190px 1fr; min-height:190px; }
-.fun-result-card.movie_star { background:linear-gradient(135deg,#1e1d25,#553650); }
-.fun-result-card.imaginary_past { background:linear-gradient(135deg,#3c3429,#78624c); }
-.fun-result-card.secret_power { background:linear-gradient(135deg,#252d25,#3f6548); }
-.fun-result-card.fairground_quest { display:block; background:linear-gradient(135deg,#392747,#7e3e60); }
-.fun-result-object { width:100%; height:100%; object-fit:cover; min-height:190px; }
-.fun-result-copy { padding:18px; align-self:center; }
-.fun-result-copy > span { display:inline-flex; padding:5px 8px; border-radius:999px; background:rgba(255,255,255,.13); font-size:.7rem; font-weight:900; text-transform:uppercase; letter-spacing:.06em; }
-.fun-result-copy h3 { margin:10px 0 4px; font-size:1.5rem; }
-.fun-result-copy strong { color:#f0dbc0; font-size:.9rem; }
-.fun-result-copy p { margin:10px 0 0; color:#f4f1eb; line-height:1.5; }
-.fun-triptych { display:grid; grid-template-columns:repeat(3,1fr); gap:3px; padding:3px 3px 0; }
-.fun-triptych img { width:100%; aspect-ratio:1 / .82; object-fit:cover; display:block; }
-.fun-result-card.fairground_quest .fun-result-copy { padding:18px 20px 22px; }
-@media (max-width:620px) {
-  .fun-heading,.fun-quest-head { display:grid; }
-  .fun-counter { justify-items:start; }
-  .fun-wish-grid { grid-template-columns:1fr; }
-  .fun-wish-card.quest { grid-column:auto; }
-  .fun-quest-picker { grid-template-columns:1fr; }
-  .fun-photo-step { grid-template-columns:34px 1fr; }
-  .fun-photo-step img,.fun-photo-cta { grid-column:2; }
-  .fun-result-card { grid-template-columns:112px 1fr; }
-  .fun-result-copy { padding:14px; }
-  .fun-result-copy h3 { font-size:1.18rem; }
-  .fun-triptych img { aspect-ratio:1; }
+/* FunLab on the public tokens: same paper and ink, a little more colour in the result cards. */
+.fun-hero { width: min(100%, 220px); justify-self: center; margin: -8px 0; }
+.fun-heading, .fun-quest-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.fun-counter { display: grid; justify-items: end; gap: 4px; color: var(--ink-soft); font-size: .9375rem; }
+.fun-wish-dots { display: flex; gap: 6px; }
+.fun-wish-dots span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line-strong); background: var(--card); color: var(--line-strong); }
+.fun-wish-dots span.active { border-color: var(--ink); background: var(--ink); color: #f4d27a; }
+.fun-object-strip { display: grid; grid-template-columns: 88px 1fr; align-items: center; gap: 14px; padding: 12px; border-radius: var(--radius); background: var(--kraft); }
+.fun-object-strip img { width: 88px; height: 76px; border-radius: 10px; object-fit: cover; }
+.fun-object-strip div { display: grid; gap: 4px; min-width: 0; }
+.fun-object-strip span { color: var(--ink-soft); font-size: .9375rem; }
+.fun-wish-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fun-wish-card { display: grid; grid-template-columns: 48px 1fr; align-content: start; gap: 6px 12px; min-height: 140px; width: 100%; padding: 16px; border: 2px solid var(--ink); border-radius: var(--radius-lg); background: var(--card); color: var(--ink); text-align: left; box-shadow: 4px 4px 0 var(--kraft-deep); }
+.fun-wish-card:disabled { cursor: default; }
+.fun-wish-card.used { opacity: .6; box-shadow: none; border-color: var(--line-strong); }
+.fun-wish-card.quest { grid-column: 1 / -1; background: #fff8e8; }
+.fun-wish-icon { grid-row: 1 / span 2; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: var(--kraft); }
+.fun-wish-card strong { align-self: end; font-size: 1.125rem; font-weight: 800; }
+.fun-wish-card small { grid-column: 2; color: var(--ink-soft); font-size: .9375rem; line-height: 1.35; }
+.fun-wish-card em { grid-column: 2; display: inline-flex; align-items: center; gap: 4px; color: var(--pine); font-size: .9375rem; font-style: normal; font-weight: 800; }
+.fun-quest-picker-title { grid-column: 1 / -1; margin-top: 8px; font-weight: 800; }
+.fun-quest-picker { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fun-quest-picker > button { display: grid; gap: 4px; min-height: 48px; padding: 12px; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--card); color: inherit; text-align: left; }
+.fun-quest-picker b { font-size: 1rem; }
+.fun-quest-picker i { color: var(--ink-soft); font-size: .9375rem; font-style: normal; line-height: 1.3; }
+.fun-quest-steps { display: grid; gap: 10px; }
+.fun-photo-step { position: relative; display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 12px; min-height: 104px; padding: 14px; border: 2px dashed var(--line-strong); border-radius: var(--radius); background: var(--card); cursor: pointer; overflow: hidden; }
+.fun-photo-step.has-photo { border-style: solid; border-color: var(--pine); background: var(--pine-tint); }
+.fun-step-number { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 800; }
+.fun-photo-copy { display: grid; gap: 4px; }
+.fun-photo-copy small { color: var(--ink-soft); font-size: .9375rem; }
+.fun-photo-cta { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border: 2px solid var(--ink); border-radius: 10px; background: var(--card); font-weight: 700; }
+.fun-photo-step img { width: 88px; height: 80px; object-fit: cover; border-radius: 10px; }
+.fun-results { display: grid; gap: 12px; padding-top: 20px; border-top: 1.5px solid var(--line); }
+.fun-results-head h2 { font-size: 1.25rem; font-weight: 800; }
+.fun-result-card { display: grid; grid-template-columns: 180px 1fr; min-height: 180px; overflow: hidden; border-radius: var(--radius-lg); background: #2b2622; color: #fff; }
+.fun-result-card.movie_star { background: #3a2334; }
+.fun-result-card.imaginary_past { background: #4a3a28; }
+.fun-result-card.secret_power { background: #22402f; }
+.fun-result-card.fairground_quest { display: block; background: #3b2744; }
+.fun-result-object { width: 100%; height: 100%; min-height: 180px; object-fit: cover; }
+.fun-result-copy { align-self: center; padding: 18px; }
+.fun-result-copy > span { display: inline-flex; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .16); font-size: .9375rem; font-weight: 800; }
+.fun-result-copy h3 { margin: 10px 0 4px; font-size: 1.5rem; font-weight: 800; }
+.fun-result-copy strong { color: #f4d9b8; }
+.fun-result-copy p { margin-top: 10px; line-height: 1.5; }
+.fun-triptych { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 3px 3px 0; }
+.fun-triptych img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+@media (max-width: 620px) {
+  .fun-heading, .fun-quest-head { display: grid; align-items: start; }
+  .fun-counter { justify-items: start; }
+  .fun-wish-grid { grid-template-columns: 1fr; }
+  .fun-quest-picker { grid-template-columns: 1fr; }
+  .fun-photo-step { grid-template-columns: 36px 1fr; }
+  .fun-photo-step img, .fun-photo-cta { grid-column: 2; justify-self: start; }
+  .fun-result-card { grid-template-columns: 112px 1fr; }
+  .fun-result-copy { padding: 14px; }
+  .fun-result-copy h3 { font-size: 1.25rem; }
 }
