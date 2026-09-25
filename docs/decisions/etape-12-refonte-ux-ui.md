@@ -108,3 +108,10 @@ Sur iPhone Safari et Android Chrome, en HTTPS, sur un déploiement de prévisual
 6. lecture en plein soleil, luminosité maximale.
 
 **No-go** si 1, 2 ou 5 échoue. La checklist sera publiée en artifact partagé pour les testeurs.
+
+## Résultat du go/no-go (25/09, soir)
+
+- Déployé en production le 25/09 (`70e2956`, PR #27), décision **GO** de Nicolas. iPhone : 6 scénarios sur 6 OK ; Android non coché.
+- Deux remarques non bloquantes, corrigées ensuite :
+  - un bouton `Retour` dans la page sur le marché, J'analyse, FunLab et Mon stand (il suit l'historique, avec l'accueil comme repli) ;
+  - la caméra ouverte depuis l'accueil ou le stand empile désormais l'écran de série sous elle : `Terminer` ramène aux photos prises au lieu du stand (`openSeriesCamera`).

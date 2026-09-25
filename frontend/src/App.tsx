@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { trackEvent, trackSessionStarted } from './api'
 import type { EntrySource } from './api'
 import FunLab from './FunLab'
-import { marketRoute, navigate, routeView, useRoute } from './navigation'
+import { marketRoute, navigate, openSeriesCamera, routeView, useRoute } from './navigation'
 import type { ViewName } from './navigation'
 import Assistant from './screens/Assistant'
 import Home from './screens/Home'
@@ -90,7 +90,7 @@ export default function App() {
     openAssistant: () => navigate({ name: 'assistant' }),
     openFunLab: () => navigate({ name: 'funlab' }),
     openSeller: () => navigate({ name: 'seller' }),
-    addObjects: () => navigate({ name: 'series', camera: true })
+    addObjects: openSeriesCamera
   }
 
   function selectTab(tab: Tab) {

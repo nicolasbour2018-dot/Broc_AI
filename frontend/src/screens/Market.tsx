@@ -159,6 +159,7 @@ function MarketList({ route, entrySource, onOpen }: { route: MarketRoute; entryS
 
   return (
     <Page wide className="market">
+      <TopBar onBack={() => goBack({ name: 'home' })} />
       <h1 className="page-title">Trouver un objet</h1>
       <form className="search-box" role="search" onSubmit={submit}>
         <label htmlFor="market-search" className="sr-only">Rechercher un objet</label>

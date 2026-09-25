@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { downloadSellerReport, fetchSellerListings, setListingSold, trackEvent, updateListing } from '../../api'
 import { plural } from '../../format'
 import { cachedListing, rememberListings } from '../../listingCache'
-import { goBack, navigate } from '../../navigation'
+import { goBack, navigate, openSeriesCamera } from '../../navigation'
 import type { Route } from '../../navigation'
 import { clearSellerOnboarding } from '../../sellerOnboarding'
 import type { SellerOnboarding } from '../../sellerOnboarding'
@@ -117,6 +117,7 @@ function Dashboard({ stand, alias, batch, onStandReset }: { stand: string; alias
 
   return (
     <Page className="dashboard">
+      <TopBar onBack={() => goBack({ name: 'home' })} />
       <div className="dashboard__head">
         <div>
           <Kicker>Mon stand</Kicker>
@@ -141,7 +142,7 @@ function Dashboard({ stand, alias, batch, onStandReset }: { stand: string; alias
           <span><strong>Reprendre ma série</strong><small>{plural(unfinished, 'annonce')} en cours de préparation.</small></span>
         </button>
       ) : (
-        <button type="button" className="hero-action" onClick={() => navigate({ name: 'series', camera: true })}>
+        <button type="button" className="hero-action" onClick={openSeriesCamera}>
           <span className="hero-action__icon"><Icon name="camera" size={32} /></span>
           <span><strong>Ajouter des objets</strong><small>Photographiez-les à la suite, BrocAI prépare les annonces.</small></span>
         </button>
@@ -252,7 +253,7 @@ function EditListing({ id, stand }: { id: string; stand: string }) {
   const problem = values ? draftProblem(values) : null
   return (
     <Page className="edit">
-      <TopBar onBack={back} backLabel="Mon stand" />
+      <TopBar onBack={back} />
       <Kicker>Stand {stand}</Kicker>
       <h1 className="page-title">Modifier l’annonce</h1>
       {listing && <img className="edit__photo" src={listing.image_url} alt={listing.title} />}

@@ -5,7 +5,8 @@ import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType } from '..
 import { AiWait, ConfidenceMeter, PhotoPicker } from '../ui/Ai'
 import { CATEGORY_DISPLAY, Icon } from '../ui/icons'
 import type { IconName } from '../ui/icons'
-import { Alert, Kicker, Page } from '../ui/Page'
+import { goBack } from '../navigation'
+import { Alert, Kicker, Page, TopBar } from '../ui/Page'
 import { Tip } from '../ui/Tip'
 
 const MAX_QUESTIONS = 3
@@ -92,6 +93,7 @@ export default function Assistant() {
 
   if (!analysis) return (
     <Page className="assistant">
+      <TopBar onBack={() => goBack({ name: 'home' })} />
       <Kicker>Analyser un objet</Kicker>
       <h1 className="page-title">Un objet vous intrigue ?</h1>
       <ol className="steps">
@@ -116,6 +118,7 @@ export default function Assistant() {
 
   return (
     <Page className="assistant">
+      <TopBar onBack={() => goBack({ name: 'home' })} />
       <button type="button" className="btn-link assistant__restart" onClick={reset}><Icon name="camera" size={20} /> Analyser un autre objet</button>
 
       <article className="analysis-card">
