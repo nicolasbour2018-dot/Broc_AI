@@ -28,9 +28,8 @@ from urllib.request import Request, urlopen
 DEFAULT_BASE_URL = "http://localhost:18000"
 DEFAULT_ADMIN_TOKEN = "loadtest-only"
 POLL_INTERVAL_SECONDS = 0.35
-# A real 1x1 PNG, deliberately tiny: the mock provider does not inspect pixels.
 PNG_BYTES = base64.b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII="
+    "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAE0lEQVR4nGP8//8/AwMDEwMYAAAkBgMBXaJOiAAAAABJRU5ErkJggg=="
 )
 
 
