@@ -503,6 +503,15 @@ textarea { min-height: 108px; resize: vertical; }
 .home-secondary-actions button:hover { background: var(--broc-surface-soft); }
 .home-secondary-actions button:focus-visible { outline: 3px solid var(--broc-market); outline-offset: 2px; }
 .home-secondary-actions .home-chevron { width: 15px; height: 15px; }
+.home-play { margin-top: clamp(18px, 4vw, 32px); }
+.home-play h2 { margin: 0 0 10px; color: var(--broc-ink-soft); font-family: var(--font-display); font-size: 1.2rem; font-weight: 500; }
+.home-play > button { display: flex; width: 100%; min-height: 76px; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; border: 1px solid var(--broc-border); border-radius: 18px; background: #fff; color: var(--broc-ink); text-align: left; }
+.home-play > button:hover { background: var(--broc-surface-soft); }
+.home-play > button:focus-visible { outline: 3px solid var(--broc-fun); outline-offset: 2px; }
+.home-play > button span { display: grid; gap: 3px; }
+.home-play > button strong { font-family: var(--font-display); font-size: 1.15rem; font-weight: 500; }
+.home-play > button small { color: var(--broc-ink-soft); font-size: .85rem; line-height: 1.35; }
+.home-play > button .home-chevron { flex: 0 0 auto; color: var(--broc-fun); }
 .home-listings { margin-top: clamp(18px, 4vw, 32px); padding: 13px clamp(13px, 3.5vw, 22px) 3px; overflow: hidden; border: 1px solid var(--broc-border); border-radius: 22px; background: #fff; box-shadow: 0 5px 20px rgba(33, 43, 65, .025); }
 .home-listings-heading { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid #eeefef; }
 .home-listings-heading > div { display: flex; align-items: center; gap: 10px; min-width: 0; }
