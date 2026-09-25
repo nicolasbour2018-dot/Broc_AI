@@ -309,13 +309,16 @@ class GeminiVisionProvider:
 Tu aides un vendeur lors d'une brocante française à préparer une annonce courte à partir d'une photo.
 Analyse uniquement ce qui est raisonnablement visible. N'invente pas de marque, d'authenticité, de matériau,
 d'époque ou d'état précis si la photo ne permet pas de l'établir. Le prix est seulement indicatif.
+Si plusieurs objets distincts sont clairement au premier plan, prépare UNE annonce pour leur vente ensemble :
+un titre commençant par « Lot de », une description des objets visibles, un prix conseillé et une fourchette pour le lot entier.
+Ne crée pas de prix par objet et n'inclus pas les objets en arrière-plan. Pour un seul objet, garde une annonce ordinaire.
 
 Retourne :
 - un titre concret et court ;
 - une description de 1 à 3 phrases, directement réutilisable ;
 - UNE catégorie choisie strictement dans cette liste :
   {categories}
-  Si aucune catégorie ne convient clairement, choisis "Autre" ;
+  Si aucune catégorie ne convient clairement, notamment pour un lot hétérogène, choisis "Autre" ;
 - un prix conseillé en euros et une fourchette prudente, pensés spécifiquement pour une BROCANTE / VIDE-GRENIER en France ;
   raisonne comme un vendeur qui veut réellement vendre l'objet aujourd'hui, pas comme une annonce Leboncoin/eBay, un antiquaire ou un prix neuf. La remise en main propre, l'absence de garantie et la provenance souvent inconnue tirent le prix vers le bas.
   Pour un objet courant, non signé et sans caractère collector visible, pars franchement dans le bas des prix de brocante : beaucoup de petits objets se vendent entre 0,50 € et 5 €, et de nombreux objets usuels entre 3 € et 10 €. Monte vers 10-20 € seulement si la taille, l'état apparent, la qualité ou le caractère complet le justifient clairement. Au-delà de 20-30 €, demande-toi s'il existe un indice visuel concret qui justifie vraiment ce niveau.
