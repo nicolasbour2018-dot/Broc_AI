@@ -533,7 +533,7 @@ function Seller({ goHome, openMarket, entry, sellerBatch }: { goHome: () => void
     const analysis = activeItem.analysis
     if (preview) return (
       <main className="screen"><button className="back" type="button" onClick={() => setPreview(false)}>← Modifier</button><p className="eyebrow">Aperçu avant publication</p><h2>{draft.title}</h2>
-        <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Objet à vendre" /></div>
+        <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Photo de l’annonce à publier" /></div>
         <div className="price-row"><strong>{formatPrice(draft.price_eur)}</strong><span className="pill">Stand {standNumber}</span></div>
         <p>{draft.description}</p>{draft.fun_line && <p className="fun-line final-fun-line">✦ {draft.fun_line}</p>}{draft.category && <p className="muted">{draft.category}</p>}
         <button className="primary" type="button" onClick={() => { sellerBatch.markReviewed(activeItem.id); setActiveItemId(null); setPreview(false) }}>Valider ce brouillon</button>
@@ -542,15 +542,15 @@ function Seller({ goHome, openMarket, entry, sellerBatch }: { goHome: () => void
     )
     return (
       <main className="screen"><button className="back" type="button" onClick={() => setActiveItemId(null)}>← Ma série</button><p className="eyebrow">Brouillon {batchItems.indexOf(activeItem) + 1} sur {batchItems.length}</p><h2>Vérifiez avant de publier</h2>
-        <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Objet à vendre" /></div>
+        <div className="preview-photo"><img src={`/media/${draft.image_key}`} alt="Photo de l’annonce à publier" /></div>
         <div className="stand-summary"><span>Publication sur</span><strong>Stand {standNumber}</strong></div>
         {analysis.analysis_mode === 'mock-fallback' ? <div className="notice"><strong>Analyse assistée indisponible pour cette photo.</strong><span> Vérifiez le brouillon avant de publier.</span></div> : <div className="analysis-meta"><span>Analyse assistée</span><strong>Confiance {CONFIDENCE_LABELS[analysis.confidence]}</strong></div>}
         <form onSubmit={e => { e.preventDefault(); setPreview(true) }} className="form-stack">
-          <label>Titre<input required maxLength={160} value={draft.title} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, title: e.target.value })} /></label>
+          <label>Titre<input required maxLength={160} value={draft.title} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, title: e.target.value })} /><small>Pour plusieurs objets vendus ensemble, commencez par « Lot de… ».</small></label>
           <label>Description<textarea required maxLength={1200} rows={4} value={draft.description} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, description: e.target.value })} /></label>
           <label>Petite phrase sympa <span className="muted">(facultatif)</span><input maxLength={180} value={draft.fun_line} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, fun_line: e.target.value })} /></label>
           <label>Catégorie<select value={draft.category} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, category: e.target.value as ListingCategory })}>{LISTING_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}</select></label>
-          <label>Prix final (€)<input required min="0" step="0.5" inputMode="decimal" type="number" value={draft.price_eur} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, price_eur: e.target.value })} /><small>Suggestion initiale : {analysis.suggested_price_eur} € · fourchette {analysis.price_range_eur.min}–{analysis.price_range_eur.max} €</small></label>
+          <label>Prix final (€)<input required min="0" step="0.5" inputMode="decimal" type="number" value={draft.price_eur} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, price_eur: e.target.value })} /><small>Pour un lot, indiquez le prix de l’ensemble. Suggestion initiale : {analysis.suggested_price_eur} € · fourchette {analysis.price_range_eur.min}–{analysis.price_range_eur.max} €</small></label>
           <label><span>Pseudo vendeur <span className="muted">(facultatif)</span></span><input maxLength={80} value={draft.seller_alias} onChange={e => sellerBatch.updateDraft(activeItem.id, { ...draft, seller_alias: e.target.value })} /></label>
           <button className="primary" type="submit">Prévisualiser l’annonce</button>
         </form>
@@ -570,9 +570,9 @@ function Seller({ goHome, openMarket, entry, sellerBatch }: { goHome: () => void
   }
 
   return (
-    <main className="screen"><button className="back" type="button" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Je vends · Stand {standNumber}</p><h2>Ma série d’objets</h2>
+    <main className="screen"><button className="back" type="button" onClick={() => setSellerMode('dashboard')}>← Mes annonces</button><p className="eyebrow">Je vends · Stand {standNumber}</p><h2>Ma série de photos</h2>
       {!batch?.started ? <>
-        <p className="lead small">Prenez vos photos à la suite, puis lancez l’analyse en une fois. Jusqu’à {MAX_SELLER_PHOTOS} objets.</p>
+        <p className="lead small">Une photo prépare une annonce. Photographiez ensemble les objets vendus en lot, puis lancez l’analyse. Jusqu’à {MAX_SELLER_PHOTOS} photos par série.</p>
         <div className="batch-photo-actions">
           <label className="photo-drop"><span>📷</span><strong>Prendre une photo</strong><input type="file" accept="image/*" capture="environment" onChange={e => { addFiles(e.target.files); e.target.value = '' }} /></label>
           <label className="photo-drop"><span>▧</span><strong>Choisir dans la galerie</strong><input type="file" accept="image/*" multiple onChange={e => { addFiles(e.target.files); e.target.value = '' }} /></label>
@@ -581,8 +581,8 @@ function Seller({ goHome, openMarket, entry, sellerBatch }: { goHome: () => void
       {batchItems.length > 0 && <div className="batch-items">{batchItems.map((item: SellerBatchItem, index) => (
         <article className="batch-item" key={item.id}>
           <div className="batch-item-main">
-            {item.previewUrl ? <img src={item.previewUrl} alt={`Objet ${index + 1}`} /> : <div className="batch-photo-placeholder" aria-hidden="true">{index + 1}</div>}
-            <div><strong>Objet {index + 1}{item.draft ? ` · ${item.draft.title}` : ''}</strong><span>{sellerBatchLabel(item)}</span>{item.progress && ['queued', 'running'].includes(item.status) && <small>{queueMessage(item.progress)}</small>}</div>
+            {item.previewUrl ? <img src={item.previewUrl} alt={`Photo ${index + 1}`} /> : <div className="batch-photo-placeholder" aria-hidden="true">{index + 1}</div>}
+            <div><strong>Photo {index + 1}{item.draft ? ` · ${item.draft.title}` : ''}</strong><span>{sellerBatchLabel(item)}</span>{item.progress && ['queued', 'running'].includes(item.status) && <small>{queueMessage(item.progress)}</small>}</div>
           </div>
           {item.error && <p className="error batch-error">{item.error}</p>}
           {!batch?.started && <div className="batch-item-actions"><label className="secondary compact batch-file-action">Remplacer<input type="file" accept="image/*" onChange={e => { const file = e.target.files?.[0]; if (file) sellerBatch.replacePhoto(item.id, file); e.target.value = '' }} /></label><button className="secondary compact" type="button" onClick={() => sellerBatch.removePhoto(item.id)}>Retirer</button></div>}
@@ -593,7 +593,7 @@ function Seller({ goHome, openMarket, entry, sellerBatch }: { goHome: () => void
         </article>
       ))}</div>}
       {error && <p className="error">{error}</p>}
-      {!batch?.started && <button className="primary" type="button" disabled={batchItems.length === 0} onClick={() => void sellerBatch.startAnalysis()}>{batchItems.length === 0 ? 'Ajoutez une photo pour analyser' : batchItems.length === 1 ? 'Analyser mon objet' : `Analyser mes ${batchItems.length} objets`}</button>}
+      {!batch?.started && <button className="primary" type="button" disabled={batchItems.length === 0} onClick={() => void sellerBatch.startAnalysis()}>{batchItems.length === 0 ? 'Ajoutez une photo pour analyser' : batchItems.length === 1 ? 'Analyser ma photo' : `Analyser mes ${batchItems.length} photos`}</button>}
       {batch?.started && publishable.length > 0 && <button className="primary" type="button" disabled={batchBusy || unreviewed} onClick={() => void sellerBatch.publishAll()}>Publier {publishable.length} annonce{publishable.length > 1 ? 's' : ''}</button>}
       {batch?.started && unreviewed && <p className="muted batch-hint">Relisez tous les brouillons prêts avant de publier.</p>}
       {canStartNew && <><div className="notice"><strong>{completedCount} annonce{completedCount > 1 ? 's' : ''} publiée{completedCount > 1 ? 's' : ''}.</strong><span>{failedCount > 0 ? ` ${failedCount} photo${failedCount > 1 ? 's' : ''} à réessayer ou à laisser de côté.` : ' Votre série est terminée.'}</span></div><button className="primary" type="button" onClick={() => sellerBatch.reset(standNumber, sellerAlias)}>{completedCount > 0 ? 'Nouvelle série' : 'Recommencer une série'}</button>{completedCount > 0 && <button className="secondary" type="button" onClick={() => void backToDashboard()}>Voir mes annonces</button>}</>}
