@@ -11,6 +11,7 @@ import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, 
 
 type View = 'welcome' | 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom' | 'funlab'
 type SellerMode = 'dashboard' | 'create' | 'edit'
+type SellerEntry = 'dashboard' | 'create'
 const APP_ONBOARDING_KEY = 'brocai-app-onboarding-v1'
 
 function initialView(): View {
@@ -95,12 +96,28 @@ function queueMessage(progress: AiJobProgress | null, action = 'Analyse'): strin
 const HOME_ILLUSTRATIONS = {
   seller: '/images/home/lamp.webp',
   market: '/images/home/chair.webp',
-  assistant: '/images/home/vase.webp',
-  fun: '/images/home/frame.webp'
+  assistant: '/images/home/vase.webp'
 } as const
 
 function HomeIllustration({ kind }: { kind: keyof typeof HOME_ILLUSTRATIONS }) {
   return <img className={`journey-illustration ${kind}-illustration`} src={HOME_ILLUSTRATIONS[kind]} alt="" aria-hidden="true" />
+}
+
+function HomeJourneyCard({ kind, title, description, onClick, featured = false }: { kind: 'seller' | 'market' | 'assistant'; title: string; description: string; onClick: () => void; featured?: boolean }) {
+  const icon = kind === 'seller'
+    ? <svg viewBox="0 0 32 32" focusable="false"><path d="M12 4h12l5 5v12L17 31 2 16z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round"/><circle cx="21" cy="10" r="1.8" fill="currentColor"/></svg>
+    : kind === 'market'
+      ? <svg viewBox="0 0 32 32" focusable="false"><circle cx="13.5" cy="13.5" r="9.5" fill="none" stroke="currentColor" strokeWidth="2.6"/><path d="m21 21 7 7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"/></svg>
+      : <svg viewBox="0 0 32 32" focusable="false"><rect x="5" y="19" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13.5" y="11" width="5" height="17" rx="2.5" fill="currentColor" /><rect x="22" y="4" width="5" height="24" rx="2.5" fill="currentColor" /></svg>
+
+  return (
+    <button className={`journey-card journey-${kind}${featured ? ' home-featured-card' : ''}`} type="button" onClick={onClick}>
+      <span className="journey-icon" aria-hidden="true">{icon}</span>
+      <span className="journey-copy"><strong>{title}</strong><small>{description}</small></span>
+      <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
+      <HomeIllustration kind={kind} />
+    </button>
+  )
 }
 
 function HomeChevron() {
@@ -143,7 +160,7 @@ function HomeListingRow({ item, onOpen, showStatus }: { item: Listing; onOpen: (
   )
 }
 
-function Home({ navigate, openListing }: { navigate: (view: View) => void; openListing: (item: Listing) => void }) {
+function Home({ navigate, openSeller, openListing }: { navigate: (view: View) => void; openSeller: (entry: SellerEntry) => void; openListing: (item: Listing) => void }) {
   // Only a confirmed onboarding makes this device a seller; everyone else gets the visitor home.
   const [onboarding] = useState(readSellerOnboarding)
   const sellerStand = onboarding?.stand ?? ''
@@ -165,10 +182,6 @@ function Home({ navigate, openListing }: { navigate: (view: View) => void; openL
 
   useEffect(() => { void loadItems() }, [sellerStand])
 
-  function openSeller() {
-    navigate('seller')
-  }
-
   const title = sellerStand ? 'Mes annonces' : 'Dernières annonces'
   // An empty visitor list would be a hollow block on the home: hide it until the first listing exists.
   const hideListings = !sellerStand && !loadingListings && !listingsError && items.length === 0
@@ -181,39 +194,18 @@ function Home({ navigate, openListing }: { navigate: (view: View) => void; openL
           <small>La brocante, plus intelligente</small>
         </div>
         {sellerStand && (
-          <button className="stand-entry" type="button" onClick={openSeller} aria-label={`Ouvrir le stand ${sellerStand}`}>
+          <button className="stand-entry" type="button" onClick={() => openSeller('dashboard')} aria-label={`Ouvrir le stand ${sellerStand}`}>
             <HomeStandIcon />
             <span>Stand {sellerStand}</span>
           </button>
         )}
       </header>
 
-      <section className="journey-section" aria-label="Parcours BrocAI">
-        <div className="journey-grid">
-          <button className="journey-card journey-seller" type="button" onClick={openSeller}>
-            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M12 4h12l5 5v12L17 31 2 16z" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round"/><circle cx="21" cy="10" r="1.8" fill="currentColor"/></svg></span>
-            <span className="journey-copy"><strong>Je vends</strong><small>Déposer une annonce et estimer un prix</small></span>
-            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
-            <HomeIllustration kind="seller" />
-          </button>
-          <button className="journey-card journey-market" type="button" onClick={() => navigate('market')}>
-            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><circle cx="13.5" cy="13.5" r="9.5" fill="none" stroke="currentColor" strokeWidth="2.6"/><path d="m21 21 7 7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"/></svg></span>
-            <span className="journey-copy"><strong>Je recherche</strong><small>Trouver les bonnes affaires autour de vous</small></span>
-            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
-            <HomeIllustration kind="market" />
-          </button>
-          <button className="journey-card journey-assistant" type="button" onClick={() => navigate('assistant')}>
-            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><rect x="5" y="19" width="5" height="9" rx="2.5" fill="currentColor" /><rect x="13.5" y="11" width="5" height="17" rx="2.5" fill="currentColor" /><rect x="22" y="4" width="5" height="24" rx="2.5" fill="currentColor" /></svg></span>
-            <span className="journey-copy"><strong>J’analyse</strong><small>Comparer, estimer et mieux négocier</small></span>
-            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
-            <HomeIllustration kind="assistant" />
-          </button>
-          <button className="journey-card journey-fun" type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>
-            <span className="journey-icon" aria-hidden="true"><svg viewBox="0 0 32 32" focusable="false"><path d="M16 2c2.4 8.2 5.8 11.6 14 14-8.2 2.4-11.6 5.8-14 14C13.6 21.8 10.2 18.4 2 16 10.2 13.6 13.6 10.2 16 2z" fill="currentColor"/></svg></span>
-            <span className="journey-copy"><strong>FunLab</strong><small>Créer des visuels fun à partir de vos photos</small></span>
-            <span className="journey-arrow" aria-hidden="true"><HomeChevron /></span>
-            <HomeIllustration kind="fun" />
-          </button>
+      <section className="journey-section" aria-label={sellerStand ? 'Gérer mon stand' : 'Découvrir la brocante'}>
+        <div className="journey-grid home-primary-grid">
+          {sellerStand
+            ? <HomeJourneyCard kind="seller" title="Ajouter un objet" description="Photographiez et publiez depuis votre stand" onClick={() => openSeller('create')} featured />
+            : <HomeJourneyCard kind="market" title="Voir les objets" description="Trouvez un objet et retrouvez son stand" onClick={() => navigate('market')} featured />}
         </div>
       </section>
 
@@ -221,21 +213,32 @@ function Home({ navigate, openListing }: { navigate: (view: View) => void; openL
         <section className="home-listings" aria-labelledby="home-listings-title" aria-live="polite">
           <div className="home-listings-heading">
             <div><svg className="home-listings-icon" viewBox="0 0 28 28" aria-hidden="true" focusable="false"><path d="M7 3.5h10l5 5V24H7z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M17 4v5h5M10 14h9M10 18h9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><h2 id="home-listings-title">{title}</h2></div>
-            <button type="button" onClick={sellerStand ? openSeller : () => navigate('market')} aria-label={sellerStand ? 'Voir toutes mes annonces' : 'Voir toutes les annonces'}>Voir tout <HomeChevron /></button>
+            <button type="button" onClick={sellerStand ? () => openSeller('dashboard') : () => navigate('market')} aria-label={sellerStand ? 'Voir toutes mes annonces' : 'Voir toutes les annonces'}>Voir tout <HomeChevron /></button>
           </div>
           {loadingListings ? (
             <p className="home-listings-state">Chargement des annonces…</p>
           ) : listingsError ? (
             <div className="home-listings-error"><span>{listingsError}</span><button type="button" onClick={() => void loadItems()}>Réessayer</button></div>
           ) : items.length === 0 ? (
-            <button className="home-listings-empty" type="button" onClick={openSeller}>Aucune annonce pour le moment. Ajoutez votre premier objet <HomeChevron /></button>
+            <button className="home-listings-empty" type="button" onClick={() => openSeller('create')}>Aucune annonce pour le moment. Ajoutez votre premier objet <HomeChevron /></button>
           ) : (
             <div className="home-listing-list">
-              {items.map(item => <HomeListingRow key={item.id} item={item} showStatus={Boolean(sellerStand)} onOpen={sellerStand ? openSeller : () => openListing(item)} />)}
+              {items.map(item => <HomeListingRow key={item.id} item={item} showStatus={Boolean(sellerStand)} onOpen={sellerStand ? () => openSeller('dashboard') : () => openListing(item)} />)}
             </div>
           )}
         </section>
       )}
+
+      <section className="journey-section home-followup" aria-label="Autres parcours BrocAI">
+        <div className={`journey-grid home-followup-grid${sellerStand ? '' : ' single'}`}>
+          {sellerStand && <HomeJourneyCard kind="market" title="Voir les objets" description="Explorez les annonces de la brocante" onClick={() => navigate('market')} />}
+          <HomeJourneyCard kind="assistant" title="J’analyse" description="Comparer, estimer et mieux négocier" onClick={() => navigate('assistant')} />
+        </div>
+        <div className="home-secondary-actions">
+          <button type="button" onClick={() => { window.history.pushState({}, '', '/fun'); navigate('funlab') }}>FunLab <HomeChevron /></button>
+          {!sellerStand && <button type="button" onClick={() => openSeller('dashboard')}>Je vends <HomeChevron /></button>}
+        </div>
+      </section>
     </main>
   )
 }
@@ -338,12 +341,12 @@ function SellerOnboardingFlow({ goHome, onConfirmed }: { goHome: () => void; onC
   )
 }
 
-function Seller({ goHome, openMarket }: { goHome: () => void; openMarket: () => void }) {
+function Seller({ goHome, openMarket, entry }: { goHome: () => void; openMarket: () => void; entry: SellerEntry }) {
   const [onboarding, setOnboarding] = useState(readSellerOnboarding)
   const standNumber = onboarding?.stand ?? ''
   const sellerAlias = onboarding?.alias ?? ''
   const [confirmingStandChange, setConfirmingStandChange] = useState(false)
-  const [sellerMode, setSellerMode] = useState<SellerMode>('dashboard')
+  const [sellerMode, setSellerMode] = useState<SellerMode>(entry)
   const [sellerItems, setSellerItems] = useState<Listing[]>([])
   const [analysis, setAnalysis] = useState<SellerAnalysis | null>(null)
   const [draft, setDraft] = useState<ListingDraft>(EMPTY_DRAFT)
@@ -878,6 +881,7 @@ function Assistant({ goHome }: { goHome: () => void }) {
 
 export default function App() {
   const [view, setView] = useState<View>(initialView)
+  const [sellerEntry, setSellerEntry] = useState<SellerEntry>('dashboard')
   // Listing tapped on the home: the market opens directly on its detail.
   const [marketEntry, setMarketEntry] = useState<Listing | null>(null)
   const previousView = useRef<View | null>(null)
@@ -920,11 +924,11 @@ export default function App() {
     if (view === 'admin') return <Admin goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'showroom') return <Showroom exitShowroom={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'funlab') return <FunLab goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
-    if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => setView('market')} />
+    if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => setView('market')} entry={sellerEntry} />
     if (view === 'market') return <Market goHome={() => setView('home')} initialListing={marketEntry} />
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
-    return <Home navigate={next => { setMarketEntry(null); setView(next) }} openListing={item => { setMarketEntry(item); setView('market') }} />
-  }, [view, marketEntry])
+    return <Home navigate={next => { setMarketEntry(null); setView(next) }} openSeller={entry => { setSellerEntry(entry); setView('seller') }} openListing={item => { setMarketEntry(item); setView('market') }} />
+  }, [view, marketEntry, sellerEntry])
   const showProductFooter = view !== 'welcome' && view !== 'home' && view !== 'admin' && view !== 'showroom'
 
   return (
