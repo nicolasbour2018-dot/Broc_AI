@@ -181,12 +181,35 @@ export async function followSellerJob(jobId: string, onProgress?: ProgressCallba
   return job
 }
 
+// Only the writes on a stand need the device's stand token; reads stay public.
+function standTokenHeader(): Record<string, string> {
+  const token = readSellerOnboarding()?.token
+  return token ? { 'X-Stand-Token': token } : {}
+}
+
+export type StandSession = { stand_number: string; token: string; created: boolean }
+
+// Opens a new stand with this code, or joins it from another phone when the code matches.
+export async function openStandSession(standNumber: string, pin: string): Promise<StandSession> {
+  const response = await fetch('/api/seller/stands/session', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Session-ID': getSessionId()
+    },
+    body: JSON.stringify({ stand_number: standNumber.trim(), pin })
+  })
+  if (!response.ok) throw new Error(await parseError(response))
+  return response.json() as Promise<StandSession>
+}
+
 export async function publishListing(draft: ListingDraft): Promise<Listing> {
   const response = await fetch('/api/listings', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Session-ID': getSessionId()
+      'X-Session-ID': getSessionId(),
+      ...standTokenHeader()
     },
     body: JSON.stringify({
       ...draft,
@@ -218,7 +241,8 @@ export async function updateListing(listingId: string, draft: ListingEditDraft):
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'X-Session-ID': getSessionId()
+      'X-Session-ID': getSessionId(),
+      ...standTokenHeader()
     },
     body: JSON.stringify({
       ...draft,
@@ -304,7 +328,8 @@ export async function setListingSold(listingId: string, standNumber: string, sol
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      'X-Session-ID': getSessionId()
+      'X-Session-ID': getSessionId(),
+      ...standTokenHeader()
     },
     body: JSON.stringify({ stand_number: standNumber.trim(), sold })
   })
@@ -418,6 +443,15 @@ export async function fetchAdminJourneys(token: string): Promise<AdminJourneys> 
   })
   if (!response.ok) throw new Error(await parseAdminError(response))
   return response.json() as Promise<AdminJourneys>
+}
+
+// Forgets a stand's code and every phone linked to it; the next phone chooses a new code. Listings stay online.
+export async function resetAdminStand(token: string, standNumber: string): Promise<void> {
+  const response = await fetch(`/api/admin/stands/${encodeURIComponent(standNumber.trim())}`, {
+    method: 'DELETE',
+    headers: { 'X-Admin-Token': token }
+  })
+  if (!response.ok) throw new Error(await parseAdminError(response))
 }
 
 export async function updateAdminRouting(

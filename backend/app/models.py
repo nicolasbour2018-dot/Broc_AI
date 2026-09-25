@@ -73,3 +73,29 @@ class MetricSnapshot(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
     snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class Stand(Base):
+    """A seller stand protected by a short numeric code chosen by its first device.
+
+    The code only guards against casual tampering between sellers: `failed_attempts` and `locked_until`
+    rate-limit guesses, and an admin reset frees the stand. Stands start fresh at each edition.
+    """
+
+    __tablename__ = "stands"
+
+    stand_number: Mapped[str] = mapped_column(String(40), primary_key=True)
+    pin_hash: Mapped[str] = mapped_column(String(200), nullable=False)
+    failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class StandDevice(Base):
+    """One device allowed to manage a stand, identified by the hash of the token it received."""
+
+    __tablename__ = "stand_devices"
+
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    stand_number: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

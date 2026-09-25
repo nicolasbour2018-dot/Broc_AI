@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { downloadAdminExport, fetchAdminJourneys, fetchAdminMetrics, updateAdminRouting } from './api'
+import { downloadAdminExport, fetchAdminJourneys, fetchAdminMetrics, resetAdminStand, updateAdminRouting } from './api'
 import type { AdminJourneys, AdminMetrics, AiJobStatus, AiRoutingMode, JourneyContext, JourneyStage, JourneyWindow } from './types'
 import './admin.css'
 
@@ -70,6 +70,8 @@ export default function Admin({ goHome }: { goHome: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [routingBusy, setRoutingBusy] = useState(false)
+  const [standToReset, setStandToReset] = useState('')
+  const [standResetMessage, setStandResetMessage] = useState('')
 
   async function refreshJourneys(token: string) {
     try {
@@ -149,6 +151,22 @@ export default function Admin({ goHome }: { goHome: () => void }) {
       setError(err instanceof Error ? err.message : 'Changement de routage impossible.')
     } finally {
       setRoutingBusy(false)
+    }
+  }
+
+  async function resetStand(e: FormEvent) {
+    e.preventDefault()
+    const stand = standToReset.trim()
+    if (!activeToken || !stand) return
+    if (!window.confirm(`Réinitialiser le code du stand ${stand} ? Tous ses téléphones devront saisir un nouveau code.`)) return
+    setError('')
+    setStandResetMessage('')
+    try {
+      await resetAdminStand(activeToken, stand)
+      setStandToReset('')
+      setStandResetMessage(`Stand ${stand} réinitialisé : le prochain téléphone choisira un nouveau code.`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Réinitialisation impossible.')
     }
   }
 
@@ -232,6 +250,15 @@ export default function Admin({ goHome }: { goHome: () => void }) {
           ))}
         </div>
         <p className="admin-routing-note">Override runtime uniquement : un redémarrage du backend revient automatiquement à <strong>{data.routing_control.configured_mode}</strong>.</p>
+      </section>
+
+      <section className="admin-section">
+        <div className="admin-section-title"><div><p className="eyebrow">Vendeurs</p><h3>Code de stand oublié</h3></div><small>Vérifiez l’identité du vendeur sur place</small></div>
+        <form className="admin-login" onSubmit={resetStand}>
+          <label>Numéro de stand<input autoComplete="off" value={standToReset} onChange={e => setStandToReset(e.target.value)} /></label>
+          <button className="secondary" disabled={!standToReset.trim()} type="submit">Réinitialiser le code</button>
+        </form>
+        {standResetMessage && <p className="muted">{standResetMessage}</p>}
       </section>
 
       <section className="admin-grid admin-grid-ops">

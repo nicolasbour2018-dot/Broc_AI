@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     ai_routing_mode: str = "auto"
     ai_force_primary_failure: bool = False
     admin_token: str | None = None
+    # Kill switch: false lets any device write to any stand again, as before the stand codes.
+    stand_pin_required: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
