@@ -728,6 +728,11 @@ function Market({ goHome, initialListing, initialMode }: { goHome: () => void; i
     void load('', '', 'recent')
   }
 
+  function showAll() {
+    setQuery('')
+    void load('', '', 'all')
+  }
+
   function changeCategory(value: ListingCategory | '') {
     void load(query.trim(), value, 'all')
   }
@@ -780,7 +785,7 @@ function Market({ goHome, initialListing, initialMode }: { goHome: () => void; i
           <div className="market-category-error"><span>{categoryError}</span><button type="button" onClick={() => void loadCategoryCounts()}>Réessayer</button></div>
         ) : categoryCounts ? (
           <nav className="market-category-scroll" aria-label="Parcourir par catégorie">
-            <button type="button" className="market-category-chip" aria-pressed={mode === 'all' && !category} onClick={() => changeCategory('')}>Tous les objets <span>{categoryCounts.total}</span></button>
+            <button type="button" className="market-category-chip" aria-pressed={mode === 'all' && !category && !appliedQuery} onClick={showAll}>Tous les objets <span>{categoryCounts.total}</span></button>
             {categoryCounts.categories.filter(item => item.count > 0).map(item => (
               <button key={item.category} type="button" className="market-category-chip" aria-pressed={category === item.category} onClick={() => changeCategory(item.category)}>{item.category} <span>{item.count}</span></button>
             ))}
@@ -789,8 +794,8 @@ function Market({ goHome, initialListing, initialMode }: { goHome: () => void; i
       </div>
 
       <div className="market-toolbar">
-        <div><h3>{mode === 'recent' ? 'Derniers objets publiés' : category || 'Tous les objets'}</h3><span>{loading ? 'Mise à jour…' : `${items.length} objet${items.length > 1 ? 's' : ''} affiché${items.length > 1 ? 's' : ''}`}</span></div>
-        {mode === 'recent' && items.length > 0 && !loading && !error && <button className="text-action" type="button" onClick={() => void load('', '', 'all')}>Voir tout le catalogue</button>}
+        <div><h3>{mode === 'recent' ? 'Derniers objets publiés' : appliedQuery ? 'Résultats de recherche' : category || 'Tous les objets'}</h3><span>{loading ? 'Mise à jour…' : `${items.length} objet${items.length > 1 ? 's' : ''} affiché${items.length > 1 ? 's' : ''}`}</span></div>
+        {mode === 'recent' && items.length > 0 && !loading && !error && <button className="text-action" type="button" onClick={showAll}>Voir tout le catalogue</button>}
         {(appliedQuery || category) && (loading || items.length > 0 || Boolean(error)) && <button className="text-action" type="button" onClick={clearFilters}>Effacer les filtres</button>}
       </div>
 
@@ -802,7 +807,12 @@ function Market({ goHome, initialListing, initialMode }: { goHome: () => void; i
         <div className="empty">
           <strong>{appliedQuery || category ? 'Aucun objet ne correspond à ces filtres.' : 'Aucune annonce pour le moment.'}</strong>
           <span>{appliedQuery || category ? 'Essayez un autre mot-clé ou une autre catégorie.' : 'Les objets en vente apparaîtront ici.'}</span>
-          {(appliedQuery || category) && <button className="secondary empty-action" type="button" onClick={clearFilters}>Effacer les filtres</button>}
+          {(appliedQuery || category) && (
+            <>
+              <button className="secondary empty-action" type="button" onClick={clearFilters}>Effacer les filtres</button>
+              <button className="primary empty-action" type="button" onClick={showAll}>Voir tous les objets</button>
+            </>
+          )}
         </div>
       ) : (
         <>
