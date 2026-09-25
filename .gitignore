@@ -1,6 +1,5 @@
 .DS_Store
-/.agent-system/observations/
-/.agent-system/benchmark/
+/.agent-system/
 .env
 backend/.env
 backend/data/

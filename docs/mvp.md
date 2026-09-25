@@ -1,6 +1,6 @@
 # Brocai — plan MVP
 
-> Objectif : fournir au harnais un ordre d'exécution clair. Chaque étape doit produire un résultat testable. Éviter les longues phases de construction technique sans parcours utilisateur fonctionnel.
+> Objectif : définir un ordre d'exécution clair. Chaque étape doit produire un résultat testable. Éviter les longues phases de construction technique sans parcours utilisateur fonctionnel.
 
 ## 0. Règle générale d'exécution
 

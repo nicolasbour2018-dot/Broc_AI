@@ -9,8 +9,42 @@ import type { SellerOnboarding } from './sellerOnboarding'
 import type { ListingCategory } from './categories'
 import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
-type View = 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom' | 'funlab'
+type View = 'welcome' | 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom' | 'funlab'
 type SellerMode = 'dashboard' | 'create' | 'edit'
+const APP_ONBOARDING_KEY = 'brocai-app-onboarding-v1'
+
+function initialView(): View {
+  if (window.location.pathname === '/admin') return 'admin'
+  if (window.location.pathname === '/showroom') return 'showroom'
+  if (window.location.pathname === '/fun') return 'funlab'
+  if (window.location.pathname !== '/') return 'home'
+  try {
+    return localStorage.getItem(APP_ONBOARDING_KEY) === 'complete' ? 'home' : 'welcome'
+  } catch {
+    return 'welcome'
+  }
+}
+
+function Welcome({ enter }: { enter: (view: 'market' | 'seller') => void }) {
+  return (
+    <main className="screen welcome" aria-labelledby="welcome-title">
+      <span className="welcome-brand">Broc<span>AI</span></span>
+      <div className="welcome-content">
+        <p className="eyebrow">Bienvenue à la brocante</p>
+        <h1 id="welcome-title">Chinez avec BrocAI</h1>
+        <ul className="welcome-features">
+          <li><strong>Découvrez les objets</strong><span>Parcourez les annonces de la brocante.</span></li>
+          <li><strong>Retrouvez le stand</strong><span>Chaque objet indique où trouver le vendeur.</span></li>
+          <li><strong>Analysez une photo</strong><span>Obtenez des repères sur un objet qui vous plaît.</span></li>
+        </ul>
+        <div className="welcome-actions">
+          <button className="primary" type="button" onClick={() => enter('market')}>Voir les objets</button>
+          <button className="welcome-seller" type="button" onClick={() => enter('seller')}>Je vends</button>
+        </div>
+      </div>
+    </main>
+  )
+}
 
 const EMPTY_DRAFT: ListingDraft = {
   image_key: '',
@@ -843,15 +877,21 @@ function Assistant({ goHome }: { goHome: () => void }) {
 }
 
 export default function App() {
-  const [view, setView] = useState<View>(
-    window.location.pathname === '/admin'
-      ? 'admin'
-      : window.location.pathname === '/showroom' ? 'showroom' : window.location.pathname === '/fun' ? 'funlab' : 'home'
-  )
+  const [view, setView] = useState<View>(initialView)
   // Listing tapped on the home: the market opens directly on its detail.
   const [marketEntry, setMarketEntry] = useState<Listing | null>(null)
   const previousView = useRef<View | null>(null)
   const shellRef = useRef<HTMLDivElement>(null)
+
+  function enterFromWelcome(next: 'market' | 'seller') {
+    try {
+      localStorage.setItem(APP_ONBOARDING_KEY, 'complete')
+    } catch {
+      setView(next)
+      return
+    }
+    setView(next)
+  }
 
   // Mirror the view background onto <html> and the browser chrome so the legacy beige base
   // never shows through overscroll or safe areas. Views without their own background are left alone.
@@ -876,6 +916,7 @@ export default function App() {
   }, [view])
 
   const content = useMemo(() => {
+    if (view === 'welcome') return <Welcome enter={enterFromWelcome} />
     if (view === 'admin') return <Admin goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'showroom') return <Showroom exitShowroom={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'funlab') return <FunLab goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
@@ -884,7 +925,7 @@ export default function App() {
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
     return <Home navigate={next => { setMarketEntry(null); setView(next) }} openListing={item => { setMarketEntry(item); setView('market') }} />
   }, [view, marketEntry])
-  const showProductFooter = view !== 'home' && view !== 'admin' && view !== 'showroom'
+  const showProductFooter = view !== 'welcome' && view !== 'home' && view !== 'admin' && view !== 'showroom'
 
   return (
     <div className={`app-shell view-${view}`} ref={shellRef}>
