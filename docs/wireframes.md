@@ -35,24 +35,25 @@ Ces maquettes très grossières couvrent le périmètre de l’étape 0 du MVP. 
 
 ### Accueil
 
-L’accueil utilise le stand confirmé sur cet appareil pour choisir sa hiérarchie. Sans stand, `Voir les objets` est la grande entrée, suivie des dernières annonces, de `J’analyse`, puis des accès discrets à `FunLab` et `Je vends`. Avec un stand confirmé, `Ajouter un objet` ouvre directement la prise de photo, puis viennent `Mes annonces`, les accès au marché et à l’analyse, et enfin `FunLab`. La direction visuelle de référence reste [maquette_prototype_V2.png](./assets/maquette_prototype_V2.png) ; les éléments sans donnée réelle derrière (favoris notamment) ne sont pas affichés. Le SVG WF-01 illustre l’ancienne disposition et ne fixe plus l’ordre des actions.
+> Mis à jour à l'[étape 12](./decisions/etape-12-refonte-ux-ui.md) : charte « Papier & étiquette », question d'accueil unique, barre d'onglets. Les SVG WF-01 à WF-06 illustrent l'ancienne disposition.
+
+Au premier lancement sur `/`, un écran unique demande « Vous êtes… » : `Je viens chiner` (accueil visiteur) ou `Je tiens un stand` (onboarding vendeur), avec un lien `Passer`. Une barre d'onglets fixe (Accueil · Chercher · Analyser · Vendre, qui devient « Mon stand » après l'onboarding) est présente partout sauf sur cet écran et dans la caméra. Chaque écran a son URL : le bouton retour du téléphone reste dans l'application.
 
 | | Visiteur | Vendeur ayant confirmé son onboarding |
 | --- | --- | --- |
-| Pastille `Stand N` | absente | visible, ouvre son stand |
-| Action principale | `Voir les objets` ouvre le mini-marché | `Ajouter un objet` ouvre la prise de photo |
-| Bloc d’annonces | `Dernières annonces` : 5 annonces actives les plus récentes ; bloc masqué tant qu’aucune annonce n’existe | `Mes annonces` : 5 annonces, vues décroissantes puis plus récentes ; actives avant vendues |
-| Toucher une ligne | fiche de l’annonce sur le mini-marché | son stand |
-| Ligne de statistiques | icône boutique et `Stand N` | nombre de vues, `0` compris |
-| `Voir tout` | mini-marché | son stand |
+| En-tête | logo + nom de l'événement | logo + badge `Stand N` (ouvre son stand) |
+| Premier bloc | `Que cherchez-vous ?` : recherche vers le marché | `Ajouter des objets` : ouvre la caméra en rafale |
+| Ensuite | grille des rayons (5 plus fournis + `Tous les rayons`), puis `Tout juste déballé` (5 dernières annonces, prix en étiquette, stand, fraîcheur) | `Mes annonces` : 5 annonces, actives d'abord, puis par vues ; statut et nombre de vues |
+| Puis | cartes `Un objet vous plaît sur un stand ?` (J'analyse) et `FunLab, le jeu de la brocante`, puis `Vous vendez ?` | liens vers les objets, J'analyse, FunLab |
+| Sans annonce | message « Les vendeurs installent leurs stands » | invitation à ajouter des objets |
 
-L’onboarding vendeur s’enchaîne ainsi : numéro de stand, pseudo facultatif (prérempli ensuite dans chaque annonce), explication en un écran de trois étapes illustrées, `Valider`, puis confirmation `Stand N` avec `Changer de numéro`. La pastille n’apparaît qu’après cette confirmation. Une action discrète `Changer de stand` dans l’écran vendeur relance l’onboarding après confirmation. Voir la [décision de l’étape 11](./decisions/etape-11-refonte-visuelle.md).
+L'onboarding vendeur s'enchaîne ainsi : numéro de stand et pseudo facultatif, un écran de trois étapes illustrées (`J'ai compris`), puis la confirmation `Oui, c'est le stand N` ou `Changer de numéro`. `Changer de stand`, dans l'espace vendeur, relance l'onboarding après confirmation.
 
 ### Vendre
 
-`Photo` → `en attente` ou `analyse en cours` → `brouillon` → `aperçu` → `publication` → `confirmation`.
+`Ajouter des objets` → caméra intégrée (rafale, vignettes retirables, galerie, `Terminer (N)`) → `Photos à analyser` → `Analyser mes N photos` → liste de brouillons éditables → `Publier les N annonces prêtes` → récapitulatif.
 
-La photo peut venir de la caméra ou de la galerie. En file, la position et une estimation par tranche sont visibles ; l’utilisateur peut quitter l’attente pour le mini-marché. Le brouillon est modifiable avant l’aperçu : titre, description, catégorie, prix et stand sont visibles, et le prix IA n’est qu’une suggestion. Le numéro de stand est identifié comme obligatoire ; le pseudo reste facultatif. La confirmation rappelle que l’annonce est publiée et donne accès à sa fiche.
+Si la caméra intégrée ne peut pas s'ouvrir (API absente, permission refusée, rien au bout de 6 s), l'écran bascule sur l'appareil photo du téléphone, avec un gros bouton `Photo suivante`. Chaque brouillon affiche titre, prix (avec la suggestion et la fourchette de BrocAI) et rayon ; description, petite phrase et pseudo sont repliés. Un badge `À vérifier` signale une confiance faible ou une analyse automatique indisponible. `Supprimer` retire le brouillon avec une annulation possible pendant 5 s, puis libère sa photo sur le serveur. Les brouillons prêts peuvent être publiés pendant que d'autres photos sont encore en analyse. Dans `Mes annonces`, `Marquer vendu` agit tout de suite, avec `Annuler` pendant 5 s.
 
 ### Acheter / mini-marché
 
@@ -64,7 +65,7 @@ La liste et la recherche montrent chaque fois titre, prix et stand avant l’ouv
 
 `Photo` → `analyse automatique courte` → `jusqu’à trois questions` → `limite atteinte`.
 
-La fiche distingue les éléments probables de l’objet de leur niveau de confiance ; elle n’affirme pas une époque ou une valeur incertaine. Les choix rapides sont `Est-ce une bonne affaire ?`, `Raconte-m’en plus` et `Négocie pour moi`, avec un champ libre. Le compteur est visible avant l’envoi. À la troisième question, la limite est expliquée comme propre à l’objet en cours ; analyser un autre objet réinitialise naturellement le contexte.
+La fiche distingue les éléments probables de l’objet de leur niveau de confiance ; elle n’affirme pas une époque ou une valeur incertaine. Sous le titre `Posez jusqu’à 3 questions sur cet objet`, chaque choix rapide dit ce qu'il renvoie : `Est-ce un bon prix ?` (avis comparant le prix du stand à l'estimation), `Racontez-m’en plus` (histoire, style, époque probable) et `Aidez-moi à négocier` (prix à proposer et phrase à dire), avec un champ libre. Le champ `Prix demandé sur le stand` précise qu'il sert au bon prix et à la négociation. Le compteur est visible avant l’envoi, et une question en erreur n'est pas décomptée. À la troisième question, la limite est expliquée comme propre à l’objet en cours ; analyser un autre objet réinitialise naturellement le contexte.
 
 ### États IA et récupération
 
