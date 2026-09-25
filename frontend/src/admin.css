@@ -58,6 +58,16 @@
 .admin-export-grid > div { display: grid; gap: 10px; padding: 14px; border: 1px solid #dedbd4; border-radius: 14px; }
 .admin-export-grid > div > div { display: flex; gap: 8px; }
 .admin-generated { margin-top: 20px; color: #777168; font-size: .82rem; text-align: right; }
+.admin-journey-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.admin-journey-card { min-width: 0; padding: 16px; border: 1px solid #dedbd4; border-radius: 16px; background: #fff; }
+.admin-journey-card h4 { margin: 0 0 12px; }
+.admin-journey-table-wrap { overflow-x: auto; }
+.admin-journey-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.admin-journey-table th, .admin-journey-table td { padding: 7px 5px; border-bottom: 1px solid #ece9e3; text-align: right; }
+.admin-journey-table th:first-child { text-align: left; }
+.admin-journey-table thead th { color: #69645c; }
+.admin-journey-detail { margin: 12px 0 0; color: #54504a; font-size: .82rem; line-height: 1.45; }
+.admin-journey-updated { margin: 10px 0 0; color: #777168; font-size: .82rem; }
 @media (max-width: 900px) {
   .admin-routing-buttons, .admin-routing-summary { grid-template-columns: 1fr; }
   .admin-job { grid-template-columns: 1fr 1fr; }
@@ -66,6 +76,7 @@
 }
 @media (max-width: 760px) {
   .admin-grid, .admin-export-grid { grid-template-columns: 1fr 1fr; }
+  .admin-journey-grid { grid-template-columns: 1fr; }
   .admin-topbar { align-items: stretch; flex-direction: column; }
 }
 @media (max-width: 480px) {

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from .db import get_db
 from .models import Event, Listing
+from .journeys import qualified_listing_view_counts
 
 router = APIRouter(prefix="/api/seller", tags=["seller"])
 PARIS = ZoneInfo("Europe/Paris")
@@ -97,16 +98,7 @@ def build_seller_report(db: Session, stand: str) -> bytes:
     average_sold = sold_total / len(sold) if sold else Decimal("0")
     sell_through = round((len(sold) / len(listings) * 100), 1) if listings else 0.0
 
-    ids = {item.id for item in listings}
-    views: Counter[str] = Counter()
-    if ids:
-        events = db.scalars(
-            select(Event).where(Event.event_name == "listing_viewed")
-        ).all()
-        for event in events:
-            listing_id = (event.properties or {}).get("listing_id")
-            if isinstance(listing_id, str) and listing_id in ids:
-                views[listing_id] += 1
+    views = qualified_listing_view_counts(db, [item.id for item in listings])
     total_views = sum(views.values())
 
     aliases = Counter(item.seller_alias.strip() for item in listings if item.seller_alias and item.seller_alias.strip())
@@ -225,7 +217,7 @@ def build_seller_report(db: Session, stand: str) -> bytes:
         _metric_cell("TAUX DE VENTE", f"{sell_through:.1f} %".replace(".", ","), style_map),
         _metric_cell("CA DÉCLARÉ", _money(sold_total), style_map),
         _metric_cell("PRIX MOYEN VENDU", _money(average_sold), style_map),
-        _metric_cell("VUES DES ANNONCES", str(total_views), style_map),
+        _metric_cell("VUES QUALIFIÉES", str(total_views), style_map),
     ]
     metric_table = Table([metrics[:3], metrics[3:]], colWidths=[55 * mm] * 3, rowHeights=[24 * mm, 24 * mm])
     metric_table.setStyle(

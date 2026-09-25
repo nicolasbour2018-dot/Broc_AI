@@ -297,6 +297,8 @@ Pas besoin d'un outil d'observabilité lourd pour le MVP si un écran admin ou u
 
 Instrumenter via événements plutôt que via logique d'analyse embarquée. Les données seront exploitées après la brocante dans un notebook / pipeline data.
 
+Pour P10/P11, une synthèse des parcours est aussi disponible pendant la brocante dans l'admin, avec rafraîchissement toutes les 15 minutes. Elle lit les événements persistés ; l'export brut reste la source de la reconstruction détaillée par session (voir `event-export.md`).
+
 Événements clés :
 
 ```text

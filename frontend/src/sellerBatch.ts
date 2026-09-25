@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchSellerListings, followSellerJob, getSessionId, publishListing, submitSellerPhoto } from './api'
+import { fetchSellerListings, followSellerJob, getSessionId, publishListing, submitSellerPhoto, trackEvent } from './api'
 import type { AiJobProgress, Listing, ListingDraft, SellerAnalysis } from './types'
 
 export const MAX_SELLER_PHOTOS = 10
@@ -91,6 +91,21 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback
 }
 
+function batchId(batch: SellerBatch): string {
+  return batch.items[0]?.id ?? ''
+}
+
+function batchCounts(batch: SellerBatch) {
+  return {
+    batch_id: batchId(batch),
+    batch_size: batch.items.length,
+    analyzed_count: batch.items.filter(item => ['ready', 'reviewed', 'publishing', 'publish_error', 'published'].includes(item.status)).length,
+    published_count: batch.items.filter(item => item.status === 'published').length,
+    failed_count: batch.items.filter(item => ['analysis_error', 'tracking_error', 'publish_error'].includes(item.status)).length,
+    entry_source: 'seller_create',
+  }
+}
+
 function draftFromAnalysis(analysis: SellerAnalysis, stand: string, alias: string): ListingDraft {
   return {
     image_key: analysis.image_key,
@@ -110,6 +125,7 @@ export function useSellerBatch() {
   const [batch, setBatch] = useState<SellerBatch>(batchRef.current)
   const polling = useRef(new Set<string>())
   const publishing = useRef(false)
+  const completedBatches = useRef(new Set<string>())
 
   const commit = useCallback((change: (current: SellerBatch) => SellerBatch) => {
     const next = change(batchRef.current!)
@@ -191,6 +207,7 @@ export function useSellerBatch() {
     if (current.started || current.items.length === 0) return
     const ids = current.items.map(item => item.id)
     commit(batch => ({ ...batch, started: true }))
+    void trackEvent('batch_started', batchCounts(current))
     let next = 0
     async function uploadNext(): Promise<void> {
       while (next < ids.length) {
@@ -200,6 +217,23 @@ export function useSellerBatch() {
     }
     await Promise.all(Array.from({ length: Math.min(2, ids.length) }, () => uploadNext()))
   }, [commit, submitItem])
+
+  useEffect(() => {
+    if (!batch.started || batch.items.length === 0) return
+    const settled = batch.items.every(item => ['ready', 'reviewed', 'analysis_error', 'tracking_error', 'publishing', 'publish_error', 'published'].includes(item.status))
+    if (!settled) return
+    const id = batchId(batch)
+    if (completedBatches.current.has(id)) return
+    const marker = `brocai-batch-completed:${id}`
+    try {
+      if (sessionStorage.getItem(marker)) return
+      sessionStorage.setItem(marker, '1')
+    } catch {
+      completedBatches.current.add(id)
+    }
+    completedBatches.current.add(id)
+    void trackEvent('batch_completed', batchCounts(batch))
+  }, [batch])
 
   useEffect(() => {
     for (const item of batch.items) {
@@ -251,6 +285,12 @@ export function useSellerBatch() {
     updateItem(id, item => item.draft ? { ...item, status: 'reviewed', error: undefined } : item)
   }, [updateItem])
 
+  const trackPublication = useCallback(() => {
+    const current = batchRef.current!
+    if (!current.started || current.items.some(item => ['selected', 'uploading', 'queued', 'running', 'ready', 'reviewed', 'publishing'].includes(item.status))) return
+    void trackEvent('batch_published', batchCounts(current))
+  }, [])
+
   const publishOne = useCallback(async (id: string) => {
     const item = batchRef.current!.items.find(candidate => candidate.id === id)
     if (!item?.draft || !['reviewed', 'publish_error'].includes(item.status)) return
@@ -263,7 +303,8 @@ export function useSellerBatch() {
     } catch (error) {
       updateItem(id, current => ({ ...current, status: 'publish_error', error: errorMessage(error, 'Publication impossible.') }))
     }
-  }, [updateItem])
+    if (!publishing.current) trackPublication()
+  }, [updateItem, trackPublication])
 
   const publishAll = useCallback(async () => {
     if (publishing.current) return
@@ -276,8 +317,9 @@ export function useSellerBatch() {
       for (const id of ids) await publishOne(id)
     } finally {
       publishing.current = false
+      trackPublication()
     }
-  }, [publishOne])
+  }, [publishOne, trackPublication])
 
   return {
     batch,

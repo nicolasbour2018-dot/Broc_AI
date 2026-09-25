@@ -8,23 +8,25 @@ export type SellerOnboarding = {
   confirmedAt: string
 }
 
+let currentOnboarding: SellerOnboarding | null = null
+
 export function readSellerOnboarding(): SellerOnboarding | null {
   try {
     const raw = localStorage.getItem(SELLER_ONBOARDING_KEY)
-    if (!raw) return null
+    if (!raw) return currentOnboarding
     const value = JSON.parse(raw) as Partial<SellerOnboarding>
     const stand = typeof value.stand === 'string' ? value.stand.trim() : ''
     if (!stand || typeof value.confirmedAt !== 'string') return null
-    return { stand, alias: typeof value.alias === 'string' ? value.alias : '', confirmedAt: value.confirmedAt }
+    currentOnboarding = { stand, alias: typeof value.alias === 'string' ? value.alias : '', confirmedAt: value.confirmedAt }
+    return currentOnboarding
   } catch {
-    return null
+    return currentOnboarding
   }
 }
 
-// Storage can be unavailable (private mode, quota): the seller keeps working in memory, only the
-// home shortcut is lost.
 export function saveSellerOnboarding(stand: string, alias: string): SellerOnboarding {
   const value: SellerOnboarding = { stand: stand.trim(), alias: alias.trim(), confirmedAt: new Date().toISOString() }
+  currentOnboarding = value
   try {
     localStorage.setItem(SELLER_ONBOARDING_KEY, JSON.stringify(value))
   } catch {
@@ -34,6 +36,7 @@ export function saveSellerOnboarding(stand: string, alias: string): SellerOnboar
 }
 
 export function clearSellerOnboarding(): void {
+  currentOnboarding = null
   try {
     localStorage.removeItem(SELLER_ONBOARDING_KEY)
   } catch {

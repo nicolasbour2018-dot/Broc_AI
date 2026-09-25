@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { downloadAdminExport, fetchAdminMetrics, updateAdminRouting } from './api'
-import type { AdminMetrics, AiJobStatus, AiRoutingMode } from './types'
+import { downloadAdminExport, fetchAdminJourneys, fetchAdminMetrics, updateAdminRouting } from './api'
+import type { AdminJourneys, AdminMetrics, AiJobStatus, AiRoutingMode, JourneyContext, JourneyStage, JourneyWindow } from './types'
 import './admin.css'
 
 const ADMIN_TOKEN_KEY = 'brocai-admin-token'
@@ -30,14 +30,55 @@ function statusLabel(status: AiJobStatus): string {
   return 'erreur'
 }
 
+const JOURNEY_STAGES: Array<[JourneyStage, string]> = [
+  ['session_started', 'Session démarrée'],
+  ['onboarding_viewed', 'Accueil initial vu'],
+  ['onboarding_marketplace_clicked', 'Marché choisi depuis l’accueil'],
+  ['marketplace_opened', 'Marché ouvert'],
+  ['marketplace_category_selected', 'Catégorie choisie'],
+  ['search_performed', 'Recherche saisie'],
+  ['listing_viewed', 'Fiche ouverte'],
+]
+
+const JOURNEY_CONTEXTS: Array<[JourneyContext, string]> = [
+  ['visitor', 'Visiteur'],
+  ['seller', 'Vendeur'],
+  ['unknown', 'Non classé'],
+]
+
+function JourneySummary({ title, window }: { title: string; window: JourneyWindow }) {
+  const { segments, batches } = window
+  return <article className="admin-journey-card">
+    <h4>{title}</h4>
+    <div className="admin-journey-table-wrap"><table className="admin-journey-table">
+      <thead><tr><th>Étape · sessions distinctes</th>{JOURNEY_CONTEXTS.map(([context, label]) => <th key={context}>{label}</th>)}</tr></thead>
+      <tbody>{JOURNEY_STAGES.map(([stage, label]) => <tr key={stage}><th>{label}</th>{JOURNEY_CONTEXTS.map(([context]) => <td key={context}>{segments[context].sessions[stage]}</td>)}</tr>)}</tbody>
+    </table></div>
+    <p className="admin-journey-detail">Fiches qualifiées : {segments.visitor.views.other + segments.seller.views.other} · propres fiches : {segments.seller.views.own} · contexte inconnu : {segments.unknown.views.unknown}</p>
+    <p className="admin-journey-detail">Séries : {batches.started} lancée(s) · {batches.completed} analysée(s) · {batches.published} publiée(s) · {batches.published_items} annonce(s) publiée(s) · {batches.failed_items} échec(s)</p>
+    <p className="admin-journey-detail">Le contexte est lu à chaque action : un appareil peut devenir vendeur pendant une session.</p>
+  </article>
+}
+
 export default function Admin({ goHome }: { goHome: () => void }) {
   const remembered = sessionStorage.getItem(ADMIN_TOKEN_KEY) || ''
   const [tokenInput, setTokenInput] = useState(remembered)
   const [activeToken, setActiveToken] = useState('')
   const [data, setData] = useState<AdminMetrics | null>(null)
+  const [journeys, setJourneys] = useState<AdminJourneys | null>(null)
+  const [journeyError, setJourneyError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [routingBusy, setRoutingBusy] = useState(false)
+
+  async function refreshJourneys(token: string) {
+    try {
+      setJourneys(await fetchAdminJourneys(token))
+      setJourneyError('')
+    } catch (err) {
+      setJourneyError(err instanceof Error ? `Parcours indisponibles : ${err.message}` : 'Parcours indisponibles.')
+    }
+  }
 
   async function authenticate(token: string, remember = true) {
     const cleaned = token.trim()
@@ -48,6 +89,7 @@ export default function Admin({ goHome }: { goHome: () => void }) {
       const metrics = await fetchAdminMetrics(cleaned)
       setData(metrics)
       setActiveToken(cleaned)
+      void refreshJourneys(cleaned)
       if (remember) sessionStorage.setItem(ADMIN_TOKEN_KEY, cleaned)
     } catch (err) {
       setData(null)
@@ -74,6 +116,12 @@ export default function Admin({ goHome }: { goHome: () => void }) {
           setError(err instanceof Error ? `Actualisation impossible : ${err.message}` : 'Actualisation impossible.')
         })
     }, 5000)
+    return () => window.clearInterval(timer)
+  }, [activeToken])
+
+  useEffect(() => {
+    if (!activeToken) return
+    const timer = window.setInterval(() => { void refreshJourneys(activeToken) }, 15 * 60 * 1000)
     return () => window.clearInterval(timer)
   }, [activeToken])
 
@@ -119,6 +167,8 @@ export default function Admin({ goHome }: { goHome: () => void }) {
     setTokenInput('')
     setActiveToken('')
     setData(null)
+    setJourneys(null)
+    setJourneyError('')
     setError('')
   }
 
@@ -225,6 +275,12 @@ export default function Admin({ goHome }: { goHome: () => void }) {
           <small>{event.reason || event.result || '—'}</small>
         </div>)}</div>
       </section>}
+
+      <section className="admin-section" aria-labelledby="admin-journeys-title">
+        <div className="admin-section-title"><div><p className="eyebrow">Usage terrain</p><h3 id="admin-journeys-title">Parcours</h3></div><small>Actualisation toutes les 15 min · heure de Paris</small></div>
+        {journeyError && <p className="error">{journeyError}</p>}
+        {journeys ? <><div className="admin-journey-grid"><JourneySummary title="15 dernières minutes" window={journeys.recent} /><JourneySummary title="Depuis minuit" window={journeys.today} /></div><p className="admin-journey-updated">Dernière actualisation : {new Date(journeys.generated_at).toLocaleTimeString('fr-FR', { timeZone: journeys.timezone })}</p></> : !journeyError && <p className="muted">Chargement des parcours…</p>}
+      </section>
 
       <section className="admin-section">
         <div className="admin-section-title"><div><p className="eyebrow">Usage & système</p><h3>Contexte du stand</h3></div><small>{data.ai.last_hour_calls} appel(s) IA sur la dernière heure · {data.ai.total_calls} au total</small></div>
