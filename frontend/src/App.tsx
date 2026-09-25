@@ -669,7 +669,7 @@ function Market({ goHome, initialListing }: { goHome: () => void; initialListing
 
   if (selected) return (
     <main className="screen">
-      <button className="back" onClick={closeDetail}>← Annonces</button>
+      <button className="back" onClick={closeDetail}>← Tous les objets</button>
       {detailError ? (
         <div className="market-detail-error">
           <div className="notice"><strong>Annonce indisponible</strong><br />{detailError}</div>
@@ -678,16 +678,13 @@ function Market({ goHome, initialListing }: { goHome: () => void; initialListing
       ) : (
         <>
           <div className={`detail-photo ${detailLoading ? 'is-loading' : ''}`}><img src={selected.image_url} alt={selected.title} /></div>
-          <div className="market-detail-meta">
-            <span className="pill">Stand {selected.stand_number}</span>
-            {selected.category && <span className="category-label">{selected.category}</span>}
-          </div>
+          <div className="stand-destination"><span>Retrouvez cet objet au</span><strong>Stand {selected.stand_number}</strong></div>
+          {selected.category && <div className="market-detail-meta"><span className="category-label">{selected.category}</span></div>}
           <h2>{selected.title}</h2>
           <div className="detail-price">{formatPrice(selected.price_eur)}</div>
           <p className="market-description">{selected.description}</p>
           {selected.fun_line && <p className="fun-line market-fun-line">✦ {selected.fun_line}</p>}
           {selected.seller_alias && <p className="muted">Vendeur · {selected.seller_alias}</p>}
-          <div className="stand-destination"><span>Pour voir cet objet</span><strong>Rendez-vous au stand {selected.stand_number}</strong></div>
           {detailLoading && <p className="muted market-loading-note">Mise à jour de l’annonce…</p>}
         </>
       )}
@@ -699,7 +696,7 @@ function Market({ goHome, initialListing }: { goHome: () => void; initialListing
       <BackButton onClick={goHome} />
       <p className="eyebrow">Marché BrocAI · Chineur</p>
       <h2>Je cherche un objet</h2>
-      <p className="lead small">Explorez les objets encore disponibles. Ouvrez une annonce pour voir son prix et retrouver immédiatement son stand.</p>
+      <p className="lead small">Repérez un objet ici, puis retrouvez-le au stand indiqué.</p>
 
       <form className="search" onSubmit={submitSearch}>
         <input aria-label="Rechercher dans le marché BrocAI" placeholder="vinyle, lampe, jouet…" value={query} onChange={e => setQuery(e.target.value)} />
@@ -733,10 +730,10 @@ function Market({ goHome, initialListing }: { goHome: () => void; initialListing
         <div className="listing-grid">{items.map(item => (
           <button key={item.id} type="button" className="listing-card" onClick={() => void openListing(item)} aria-label={`Voir ${item.title}, ${formatPrice(item.price_eur)}, stand ${item.stand_number}`}>
             <img src={item.image_url} alt={item.title} loading="lazy" />
-            <div>
-              <div className="listing-card-meta"><span className="pill">Stand {item.stand_number}</span>{item.category && <span className="category-label compact-category">{item.category}</span>}</div>
+            <div className="market-listing-info">
+              <div className="market-listing-stand"><span>À retrouver au</span><strong>Stand {item.stand_number}</strong></div>
               <h3>{item.title}</h3>
-              <strong>{formatPrice(item.price_eur)}</strong>
+              <div className="market-listing-bottom"><strong>{formatPrice(item.price_eur)}</strong>{item.category && <span className="category-label compact-category">{item.category}</span>}</div>
             </div>
           </button>
         ))}</div>
