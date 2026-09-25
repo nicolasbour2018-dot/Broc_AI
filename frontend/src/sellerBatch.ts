@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchSellerListings, followSellerJob, getSessionId, publishListing, submitSellerPhoto, trackEvent } from './api'
+import { deleteSellerDraft, fetchSellerListings, followSellerJob, getSessionId, publishListing, submitSellerPhoto, trackEvent } from './api'
 import type { AiJobProgress, Listing, ListingDraft, SellerAnalysis } from './types'
 
 export const MAX_SELLER_PHOTOS = 10
@@ -32,11 +32,19 @@ export type SellerBatchItem = {
   error?: string
 }
 
+// `reviewed` only survives in batches stored before drafts became publishable as soon as they are ready.
+export const PUBLISHABLE_STATUSES: SellerBatchStatus[] = ['ready', 'reviewed', 'publish_error']
+export const BUSY_STATUSES: SellerBatchStatus[] = ['uploading', 'queued', 'running', 'publishing']
+
+export type RemovedItem = { item: SellerBatchItem; index: number }
+
 export type SellerBatch = {
   stand: string
   alias: string
   sessionId: string
   started: boolean
+  // Fixed when the series is first analysed, so removing its first photo keeps analytics consistent.
+  id?: string
   items: SellerBatchItem[]
 }
 
@@ -52,8 +60,9 @@ function readBatch(): SellerBatch {
     if (parsed.sessionId !== getSessionId() || !parsed.stand || !parsed.started || !Array.isArray(parsed.items)) return emptyBatch()
     return {
       ...parsed,
-      items: parsed.items.map(item => {
-        const status = item.status === 'uploading' || item.status === 'selected'
+      // Photos never sent for analysis only existed on the phone: their files are gone after a reload.
+      items: parsed.items.filter(item => item.status !== 'selected').map(item => {
+        const status = item.status === 'uploading'
           ? 'analysis_error'
           : item.status === 'publishing' ? 'publish_error' : item.status
         return {
@@ -92,7 +101,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 function batchId(batch: SellerBatch): string {
-  return batch.items[0]?.id ?? ''
+  return batch.id ?? batch.items[0]?.id ?? ''
 }
 
 function batchCounts(batch: SellerBatch) {
@@ -156,7 +165,6 @@ export function useSellerBatch() {
   const addPhotos = useCallback((files: File[]) => {
     let added = 0
     commit(current => {
-      if (current.started) return current
       const available = MAX_SELLER_PHOTOS - current.items.length
       const additions = files.slice(0, available).map(file => ({
         id: typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
@@ -170,16 +178,36 @@ export function useSellerBatch() {
     return added
   }, [commit])
 
-  const removePhoto = useCallback((id: string) => {
-    const item = batchRef.current!.items.find(candidate => candidate.id === id)
-    if (batchRef.current!.started || !item) return
-    if (item.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl)
+  // Takes an item out of the series; the caller either restores it (undo) or discards it for good.
+  const removeItem = useCallback((id: string): RemovedItem | null => {
+    const index = batchRef.current!.items.findIndex(candidate => candidate.id === id)
+    const item = batchRef.current!.items[index]
+    if (!item || BUSY_STATUSES.includes(item.status)) return null
     commit(current => ({ ...current, items: current.items.filter(candidate => candidate.id !== id) }))
+    if (batchRef.current!.started) void trackEvent('feature_clicked', { feature: 'seller_draft', action: 'deleted', status: item.status })
+    return { item, index }
   }, [commit])
+
+  const restoreItem = useCallback((removed: RemovedItem) => {
+    commit(current => {
+      if (current.items.some(candidate => candidate.id === removed.item.id)) return current
+      const items = [...current.items]
+      items.splice(Math.min(removed.index, items.length), 0, removed.item)
+      return { ...current, items }
+    })
+    void trackEvent('feature_clicked', { feature: 'seller_draft', action: 'undone' })
+  }, [commit])
+
+  // Final step of a removal: free the preview and the uploaded photo, which no listing uses.
+  const discardRemoved = useCallback((removed: RemovedItem) => {
+    if (removed.item.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(removed.item.previewUrl)
+    const imageKey = removed.item.analysis?.image_key ?? removed.item.draft?.image_key
+    if (imageKey && removed.item.status !== 'published') void deleteSellerDraft(imageKey)
+  }, [])
 
   const replacePhoto = useCallback((id: string, file: File) => {
     const item = batchRef.current!.items.find(candidate => candidate.id === id)
-    if (!item || batchRef.current!.started) return
+    if (!item || item.status !== 'selected') return
     if (item.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(item.previewUrl)
     updateItem(id, current => ({ ...current, file, previewUrl: URL.createObjectURL(file) }))
   }, [updateItem])
@@ -204,10 +232,11 @@ export function useSellerBatch() {
 
   const startAnalysis = useCallback(async () => {
     const current = batchRef.current!
-    if (current.started || current.items.length === 0) return
-    const ids = current.items.map(item => item.id)
-    commit(batch => ({ ...batch, started: true }))
-    void trackEvent('batch_started', batchCounts(current))
+    const ids = current.items.filter(item => item.status === 'selected').map(item => item.id)
+    if (ids.length === 0) return
+    const firstStart = !current.started
+    commit(batch => ({ ...batch, started: true, id: batch.id ?? batch.items[0]?.id }))
+    if (firstStart) void trackEvent('batch_started', batchCounts(current))
     let next = 0
     async function uploadNext(): Promise<void> {
       while (next < ids.length) {
@@ -281,10 +310,6 @@ export function useSellerBatch() {
     updateItem(id, item => ({ ...item, draft, status: 'ready', error: undefined }))
   }, [updateItem])
 
-  const markReviewed = useCallback((id: string) => {
-    updateItem(id, item => item.draft ? { ...item, status: 'reviewed', error: undefined } : item)
-  }, [updateItem])
-
   const trackPublication = useCallback(() => {
     const current = batchRef.current!
     if (!current.started || current.items.some(item => ['selected', 'uploading', 'queued', 'running', 'ready', 'reviewed', 'publishing'].includes(item.status))) return
@@ -293,7 +318,7 @@ export function useSellerBatch() {
 
   const publishOne = useCallback(async (id: string) => {
     const item = batchRef.current!.items.find(candidate => candidate.id === id)
-    if (!item?.draft || !['reviewed', 'publish_error'].includes(item.status)) return
+    if (!item?.draft || !PUBLISHABLE_STATUSES.includes(item.status)) return
     updateItem(id, current => ({ ...current, status: 'publishing', error: undefined }))
     try {
       const listings = item.status === 'publish_error' ? await fetchSellerListings(batchRef.current!.stand) : []
@@ -306,11 +331,12 @@ export function useSellerBatch() {
     if (!publishing.current) trackPublication()
   }, [updateItem, trackPublication])
 
-  const publishAll = useCallback(async () => {
+  // Publishes the drafts that are ready (or those given), even while other photos are still analysed.
+  const publishAll = useCallback(async (onlyIds?: string[]) => {
     if (publishing.current) return
-    const current = batchRef.current!
-    if (current.items.some(item => ['uploading', 'queued', 'running', 'ready', 'publishing'].includes(item.status))) return
-    const ids = current.items.filter(item => ['reviewed', 'publish_error'].includes(item.status)).map(item => item.id)
+    const ids = batchRef.current!.items
+      .filter(item => PUBLISHABLE_STATUSES.includes(item.status) && (!onlyIds || onlyIds.includes(item.id)))
+      .map(item => item.id)
     if (ids.length === 0) return
     publishing.current = true
     try {
@@ -326,13 +352,14 @@ export function useSellerBatch() {
     ensureStand,
     reset,
     addPhotos,
-    removePhoto,
+    removeItem,
+    restoreItem,
+    discardRemoved,
     replacePhoto,
     startAnalysis,
     submitItem,
     retryTracking,
     updateDraft,
-    markReviewed,
     publishOne,
     publishAll,
   }
