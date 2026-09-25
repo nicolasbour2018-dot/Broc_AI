@@ -1,5 +1,5 @@
 import type { ListingCategory } from './categories'
-import type { AdminMetrics, AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, FunQuestType, FunWishResult, FunWishType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
+import type { AdminMetrics, AiJob, AiJobProgress, AssistantAnalysis, AssistantQuestionResponse, AssistantQuestionType, FunQuestType, FunWishResult, FunWishType, Listing, ListingCategoryCounts, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 const SESSION_KEY = 'brocai-session-id'
 const SESSION_STARTED_KEY = 'brocai-session-started'
@@ -173,11 +173,13 @@ export async function updateListing(listingId: string, draft: ListingEditDraft):
   return response.json() as Promise<Listing>
 }
 
-export async function fetchListings(query = '', category?: ListingCategory): Promise<Listing[]> {
+export async function fetchListings(query = '', category?: ListingCategory, limit?: number, offset = 0): Promise<Listing[]> {
   const started = performance.now()
   const url = new URL('/api/listings', window.location.origin)
   if (query.trim()) url.searchParams.set('q', query.trim())
   if (category) url.searchParams.set('category', category)
+  if (limit) url.searchParams.set('limit', String(limit))
+  if (offset) url.searchParams.set('offset', String(offset))
   const response = await fetch(url, { headers: { 'X-Session-ID': getSessionId() } })
   if (!response.ok) throw new Error(await parseError(response))
   const rows = await response.json() as Listing[]
@@ -187,6 +189,12 @@ export async function fetchListings(query = '', category?: ListingCategory): Pro
     results: rows.length
   })
   return rows
+}
+
+export async function fetchListingCategoryCounts(): Promise<ListingCategoryCounts> {
+  const response = await fetch('/api/listings/category-counts')
+  if (!response.ok) throw new Error(await parseError(response))
+  return response.json() as Promise<ListingCategoryCounts>
 }
 
 // Home preview of the newest active listings. Deliberately not tracked as `catalogue_loaded`,

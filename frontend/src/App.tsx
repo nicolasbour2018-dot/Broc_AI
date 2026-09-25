@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, downloadSellerReport, fetchLatestListings, fetchListing, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
+import { analyzeAssistantPhoto, analyzeSellerPhoto, askAssistantQuestion, downloadSellerReport, fetchLatestListings, fetchListing, fetchListingCategoryCounts, fetchListings, fetchSellerListings, publishListing, setListingSold, trackEvent, trackSessionStarted, updateListing } from './api'
 import Admin from './Admin'
 import Showroom from './Showroom'
 import FunLab from './FunLab'
@@ -7,11 +7,12 @@ import { DEFAULT_CATEGORY, LISTING_CATEGORIES } from './categories'
 import { clearSellerOnboarding, readSellerOnboarding, saveSellerOnboarding } from './sellerOnboarding'
 import type { SellerOnboarding } from './sellerOnboarding'
 import type { ListingCategory } from './categories'
-import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
+import type { AiJobProgress, AssistantAnalysis, AssistantQuestionType, Listing, ListingCategoryCounts, ListingDraft, ListingEditDraft, SellerAnalysis } from './types'
 
 type View = 'welcome' | 'home' | 'seller' | 'market' | 'assistant' | 'admin' | 'showroom' | 'funlab'
 type SellerMode = 'dashboard' | 'create' | 'edit'
 type SellerEntry = 'dashboard' | 'create'
+type MarketMode = 'recent' | 'all'
 const APP_ONBOARDING_KEY = 'brocai-app-onboarding-v1'
 
 function initialView(): View {
@@ -160,7 +161,7 @@ function HomeListingRow({ item, onOpen, showStatus }: { item: Listing; onOpen: (
   )
 }
 
-function Home({ navigate, openSeller, openListing }: { navigate: (view: View) => void; openSeller: (entry: SellerEntry) => void; openListing: (item: Listing) => void }) {
+function Home({ navigate, openMarket, openSeller, openListing }: { navigate: (view: View) => void; openMarket: (mode: MarketMode) => void; openSeller: (entry: SellerEntry) => void; openListing: (item: Listing) => void }) {
   // Only a confirmed onboarding makes this device a seller; everyone else gets the visitor home.
   const [onboarding] = useState(readSellerOnboarding)
   const sellerStand = onboarding?.stand ?? ''
@@ -205,7 +206,7 @@ function Home({ navigate, openSeller, openListing }: { navigate: (view: View) =>
         <div className="journey-grid home-primary-grid">
           {sellerStand
             ? <HomeJourneyCard kind="seller" title="Ajouter un objet" description="Photographiez et publiez depuis votre stand" onClick={() => openSeller('create')} featured />
-            : <HomeJourneyCard kind="market" title="Voir les objets" description="Trouvez un objet et retrouvez son stand" onClick={() => navigate('market')} featured />}
+            : <HomeJourneyCard kind="market" title="Voir les objets" description="Trouvez un objet et retrouvez son stand" onClick={() => openMarket('recent')} featured />}
         </div>
       </section>
 
@@ -213,7 +214,7 @@ function Home({ navigate, openSeller, openListing }: { navigate: (view: View) =>
         <section className="home-listings" aria-labelledby="home-listings-title" aria-live="polite">
           <div className="home-listings-heading">
             <div><svg className="home-listings-icon" viewBox="0 0 28 28" aria-hidden="true" focusable="false"><path d="M7 3.5h10l5 5V24H7z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/><path d="M17 4v5h5M10 14h9M10 18h9" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg><h2 id="home-listings-title">{title}</h2></div>
-            <button type="button" onClick={sellerStand ? () => openSeller('dashboard') : () => navigate('market')} aria-label={sellerStand ? 'Voir toutes mes annonces' : 'Voir toutes les annonces'}>Voir tout <HomeChevron /></button>
+            <button type="button" onClick={sellerStand ? () => openSeller('dashboard') : () => openMarket('all')} aria-label={sellerStand ? 'Voir toutes mes annonces' : 'Voir toutes les annonces'}>Voir tout <HomeChevron /></button>
           </div>
           {loadingListings ? (
             <p className="home-listings-state">Chargement des annonces…</p>
@@ -231,7 +232,7 @@ function Home({ navigate, openSeller, openListing }: { navigate: (view: View) =>
 
       <section className="journey-section home-followup" aria-label="Autres parcours BrocAI">
         <div className={`journey-grid home-followup-grid${sellerStand ? '' : ' single'}`}>
-          {sellerStand && <HomeJourneyCard kind="market" title="Voir les objets" description="Explorez les annonces de la brocante" onClick={() => navigate('market')} />}
+          {sellerStand && <HomeJourneyCard kind="market" title="Voir les objets" description="Explorez les annonces de la brocante" onClick={() => openMarket('recent')} />}
           <HomeJourneyCard kind="assistant" title="J’analyse" description="Comparer, estimer et mieux négocier" onClick={() => navigate('assistant')} />
         </div>
         <div className="home-secondary-actions">
@@ -601,79 +602,149 @@ function Seller({ goHome, openMarket, entry }: { goHome: () => void; openMarket:
   )
 }
 
-function Market({ goHome, initialListing }: { goHome: () => void; initialListing: Listing | null }) {
+const MARKET_RECENT_COUNT = 12
+const MARKET_PAGE_SIZE = 24
+
+function Market({ goHome, initialListing, initialMode }: { goHome: () => void; initialListing: Listing | null; initialMode: MarketMode }) {
   const [items, setItems] = useState<Listing[]>([])
   const [query, setQuery] = useState('')
   const [appliedQuery, setAppliedQuery] = useState('')
   const [category, setCategory] = useState<ListingCategory | ''>('')
+  const [mode, setMode] = useState<MarketMode>(initialMode)
+  const [categoryCounts, setCategoryCounts] = useState<ListingCategoryCounts | null>(null)
+  const [categoryError, setCategoryError] = useState('')
   const [selected, setSelected] = useState<Listing | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [nextOffset, setNextOffset] = useState(0)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
+  const [moreError, setMoreError] = useState('')
   const [detailError, setDetailError] = useState('')
+  const requestVersion = useRef(0)
+  const countsRequestVersion = useRef(0)
+  const detailRequestVersion = useRef(0)
+  const loadingMoreRef = useRef(false)
 
-  async function load(q = '', selectedCategory: ListingCategory | '' = category) {
+  async function load(q: string, selectedCategory: ListingCategory | '', nextMode: MarketMode) {
+    const version = ++requestVersion.current
+    setAppliedQuery(q)
+    setCategory(selectedCategory)
+    setMode(nextMode)
     setLoading(true)
+    setLoadingMore(false)
+    loadingMoreRef.current = false
+    setItems([])
+    setHasMore(false)
+    setNextOffset(0)
     setError('')
+    setMoreError('')
     try {
-      const rows = await fetchListings(q, selectedCategory || undefined)
-      setItems(selectedCategory ? rows.filter(item => item.category === selectedCategory) : rows)
+      const rows = await fetchListings(q, selectedCategory || undefined, nextMode === 'recent' ? MARKET_RECENT_COUNT : MARKET_PAGE_SIZE + 1)
+      if (version !== requestVersion.current) return
+      setItems(nextMode === 'recent' ? rows : rows.slice(0, MARKET_PAGE_SIZE))
+      setHasMore(nextMode === 'all' && rows.length > MARKET_PAGE_SIZE)
+      setNextOffset(nextMode === 'all' ? MARKET_PAGE_SIZE : 0)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Catalogue indisponible.')
+      if (version !== requestVersion.current) return
+      setError(err instanceof Error && err.message !== 'Une erreur est survenue.' ? err.message : 'Catalogue indisponible pour le moment.')
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
+    }
+  }
+
+  async function loadMore() {
+    if (loading || loadingMoreRef.current || !hasMore) return
+    const version = requestVersion.current
+    loadingMoreRef.current = true
+    setLoadingMore(true)
+    setMoreError('')
+    try {
+      const rows = await fetchListings(appliedQuery, category || undefined, MARKET_PAGE_SIZE + 1, nextOffset)
+      if (version !== requestVersion.current) return
+      setItems(previous => {
+        const seen = new Set(previous.map(item => item.id))
+        return [...previous, ...rows.slice(0, MARKET_PAGE_SIZE).filter(item => !seen.has(item.id))]
+      })
+      setHasMore(rows.length > MARKET_PAGE_SIZE)
+      setNextOffset(nextOffset + MARKET_PAGE_SIZE)
+    } catch (err) {
+      if (version !== requestVersion.current) return
+      setMoreError(err instanceof Error && err.message !== 'Une erreur est survenue.' ? err.message : 'Impossible de charger plus d’objets.')
+    } finally {
+      if (version === requestVersion.current) {
+        loadingMoreRef.current = false
+        setLoadingMore(false)
+      }
+    }
+  }
+
+  async function loadCategoryCounts() {
+    const version = ++countsRequestVersion.current
+    setCategoryError('')
+    try {
+      const counts = await fetchListingCategoryCounts()
+      if (version === countsRequestVersion.current) setCategoryCounts(counts)
+    } catch (err) {
+      if (version === countsRequestVersion.current) setCategoryError(err instanceof Error && err.message !== 'Une erreur est survenue.' ? err.message : 'Catégories indisponibles pour le moment.')
     }
   }
 
   useEffect(() => {
-    void load()
+    void load('', '', initialMode)
+    void loadCategoryCounts()
     if (initialListing) void openListing(initialListing)
+    return () => {
+      requestVersion.current += 1
+      countsRequestVersion.current += 1
+      detailRequestVersion.current += 1
+    }
   }, [])
 
   async function openListing(item: Listing) {
+    const version = ++detailRequestVersion.current
     setSelected(item)
     setDetailLoading(true)
     setDetailError('')
     try {
-      setSelected(await fetchListing(item.id))
+      const listing = await fetchListing(item.id)
+      if (version === detailRequestVersion.current) setSelected(listing)
     } catch (err) {
-      setDetailError(err instanceof Error ? err.message : 'Cette annonce n’est plus disponible.')
+      if (version === detailRequestVersion.current) setDetailError(err instanceof Error ? err.message : 'Cette annonce n’est plus disponible.')
     } finally {
-      setDetailLoading(false)
+      if (version === detailRequestVersion.current) setDetailLoading(false)
     }
   }
 
   function submitSearch(e: FormEvent) {
     e.preventDefault()
     const cleaned = query.trim()
-    setAppliedQuery(cleaned)
-    void load(cleaned, category)
+    void load(cleaned, category, cleaned || category ? 'all' : 'recent')
   }
 
   function clearFilters() {
     setQuery('')
-    setAppliedQuery('')
-    setCategory('')
-    void load('', '')
+    void load('', '', 'recent')
   }
 
   function changeCategory(value: ListingCategory | '') {
-    setCategory(value)
-    void load(appliedQuery, value)
+    void load(query.trim(), value, 'all')
   }
 
   function closeDetail() {
+    detailRequestVersion.current += 1
     setSelected(null)
     setDetailError('')
   }
 
   if (selected) return (
     <main className="screen">
-      <button className="back" onClick={closeDetail}>← Tous les objets</button>
+      <button className="back" onClick={closeDetail}>← Retour aux objets</button>
       {detailError ? (
         <div className="market-detail-error">
           <div className="notice"><strong>Annonce indisponible</strong><br />{detailError}</div>
-          <button className="primary" type="button" onClick={() => { closeDetail(); void load(appliedQuery, category) }}>Actualiser le marché</button>
+          <button className="primary" type="button" onClick={() => { closeDetail(); void load(appliedQuery, category, mode) }}>Actualiser le marché</button>
         </div>
       ) : (
         <>
@@ -700,43 +771,54 @@ function Market({ goHome, initialListing }: { goHome: () => void; initialListing
 
       <form className="search" onSubmit={submitSearch}>
         <input aria-label="Rechercher dans le marché BrocAI" placeholder="vinyle, lampe, jouet…" value={query} onChange={e => setQuery(e.target.value)} />
-        <button type="submit" disabled={loading}>{loading ? 'Recherche…' : 'Rechercher'}</button>
+        <button type="submit">Rechercher</button>
       </form>
 
-      <label className="category-filter">
-        <span>Catégorie</span>
-        <select aria-label="Filtrer par catégorie" value={category} onChange={e => changeCategory(e.target.value as ListingCategory | '')}>
-          <option value="">Toutes les catégories</option>
-          {LISTING_CATEGORIES.map(item => <option key={item} value={item}>{item}</option>)}
-        </select>
-      </label>
-
-      <div className="market-toolbar">
-        <span>{loading ? 'Mise à jour…' : `${items.length} objet${items.length > 1 ? 's' : ''}${appliedQuery || category ? ' trouvé' + (items.length > 1 ? 's' : '') : ' en vente'}`}</span>
-        {(appliedQuery || category) && <button className="text-action" type="button" onClick={clearFilters}>Effacer les filtres</button>}
+      <div className="market-categories">
+        <strong>Chiner par catégorie</strong>
+        {categoryError ? (
+          <div className="market-category-error"><span>{categoryError}</span><button type="button" onClick={() => void loadCategoryCounts()}>Réessayer</button></div>
+        ) : categoryCounts ? (
+          <nav className="market-category-scroll" aria-label="Parcourir par catégorie">
+            <button type="button" className="market-category-chip" aria-pressed={mode === 'all' && !category} onClick={() => changeCategory('')}>Tous les objets <span>{categoryCounts.total}</span></button>
+            {categoryCounts.categories.filter(item => item.count > 0).map(item => (
+              <button key={item.category} type="button" className="market-category-chip" aria-pressed={category === item.category} onClick={() => changeCategory(item.category)}>{item.category} <span>{item.count}</span></button>
+            ))}
+          </nav>
+        ) : <span className="market-category-loading">Chargement des catégories…</span>}
       </div>
 
-      {error && <div className="market-error"><p className="error">{error}</p><button className="secondary" type="button" onClick={() => void load(appliedQuery, category)}>Réessayer</button></div>}
+      <div className="market-toolbar">
+        <div><h3>{mode === 'recent' ? 'Derniers objets publiés' : category || 'Tous les objets'}</h3><span>{loading ? 'Mise à jour…' : `${items.length} objet${items.length > 1 ? 's' : ''} affiché${items.length > 1 ? 's' : ''}`}</span></div>
+        {mode === 'recent' && items.length > 0 && !loading && !error && <button className="text-action" type="button" onClick={() => void load('', '', 'all')}>Voir tout le catalogue</button>}
+        {(appliedQuery || category) && (loading || items.length > 0 || Boolean(error)) && <button className="text-action" type="button" onClick={clearFilters}>Effacer les filtres</button>}
+      </div>
+
+      {error && <div className="market-error"><p className="error">{error}</p><button className="secondary" type="button" onClick={() => void load(appliedQuery, category, mode)}>Réessayer</button></div>}
 
       {!error && (loading ? (
         <div className="market-loading" aria-live="polite"><span className="market-spinner" /><span>Chargement des objets…</span></div>
       ) : items.length === 0 ? (
         <div className="empty">
           <strong>{appliedQuery || category ? 'Aucun objet ne correspond à ces filtres.' : 'Aucune annonce pour le moment.'}</strong>
-          <span>{appliedQuery || category ? 'Essayez un autre mot-clé, une autre catégorie ou affichez de nouveau tout le marché.' : 'Les objets en vente apparaîtront ici.'}</span>
-          {(appliedQuery || category) && <button className="secondary empty-action" type="button" onClick={clearFilters}>Voir toutes les annonces</button>}
+          <span>{appliedQuery || category ? 'Essayez un autre mot-clé ou une autre catégorie.' : 'Les objets en vente apparaîtront ici.'}</span>
+          {(appliedQuery || category) && <button className="secondary empty-action" type="button" onClick={clearFilters}>Effacer les filtres</button>}
         </div>
       ) : (
-        <div className="listing-grid">{items.map(item => (
-          <button key={item.id} type="button" className="listing-card" onClick={() => void openListing(item)} aria-label={`Voir ${item.title}, ${formatPrice(item.price_eur)}, stand ${item.stand_number}`}>
-            <img src={item.image_url} alt={item.title} loading="lazy" />
-            <div className="market-listing-info">
-              <div className="market-listing-stand"><span>À retrouver au</span><strong>Stand {item.stand_number}</strong></div>
-              <h3>{item.title}</h3>
-              <div className="market-listing-bottom"><strong>{formatPrice(item.price_eur)}</strong>{item.category && <span className="category-label compact-category">{item.category}</span>}</div>
-            </div>
-          </button>
-        ))}</div>
+        <>
+          <div className="listing-grid">{items.map(item => (
+            <button key={item.id} type="button" className="listing-card" onClick={() => void openListing(item)} aria-label={`Voir ${item.title}, ${formatPrice(item.price_eur)}, stand ${item.stand_number}`}>
+              <img src={item.image_url} alt={item.title} loading="lazy" />
+              <div className="market-listing-info">
+                <div className="market-listing-stand"><span>À retrouver au</span><strong>Stand {item.stand_number}</strong></div>
+                <h3>{item.title}</h3>
+                <div className="market-listing-bottom"><strong>{formatPrice(item.price_eur)}</strong>{item.category && <span className="category-label compact-category">{item.category}</span>}</div>
+              </div>
+            </button>
+          ))}</div>
+          {moreError && <p className="error">{moreError}</p>}
+          {mode === 'all' && hasMore && <button className="secondary market-load-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? 'Chargement…' : moreError ? 'Réessayer de voir plus' : 'Voir plus d’objets'}</button>}
+        </>
       ))}
     </main>
   )
@@ -881,10 +963,15 @@ export default function App() {
   const [sellerEntry, setSellerEntry] = useState<SellerEntry>('dashboard')
   // Listing tapped on the home: the market opens directly on its detail.
   const [marketEntry, setMarketEntry] = useState<Listing | null>(null)
+  const [marketMode, setMarketMode] = useState<MarketMode>('recent')
   const previousView = useRef<View | null>(null)
   const shellRef = useRef<HTMLDivElement>(null)
 
   function enterFromWelcome(next: 'market' | 'seller') {
+    if (next === 'market') {
+      setMarketEntry(null)
+      setMarketMode('recent')
+    }
     try {
       localStorage.setItem(APP_ONBOARDING_KEY, 'complete')
     } catch {
@@ -921,11 +1008,11 @@ export default function App() {
     if (view === 'admin') return <Admin goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'showroom') return <Showroom exitShowroom={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
     if (view === 'funlab') return <FunLab goHome={() => { window.history.replaceState({}, '', '/'); setView('home') }} />
-    if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => setView('market')} entry={sellerEntry} />
-    if (view === 'market') return <Market goHome={() => setView('home')} initialListing={marketEntry} />
+    if (view === 'seller') return <Seller goHome={() => setView('home')} openMarket={() => { setMarketEntry(null); setMarketMode('recent'); setView('market') }} entry={sellerEntry} />
+    if (view === 'market') return <Market goHome={() => setView('home')} initialListing={marketEntry} initialMode={marketMode} />
     if (view === 'assistant') return <Assistant goHome={() => setView('home')} />
-    return <Home navigate={next => { setMarketEntry(null); setView(next) }} openSeller={entry => { setSellerEntry(entry); setView('seller') }} openListing={item => { setMarketEntry(item); setView('market') }} />
-  }, [view, marketEntry, sellerEntry])
+    return <Home navigate={setView} openMarket={mode => { setMarketEntry(null); setMarketMode(mode); setView('market') }} openSeller={entry => { setSellerEntry(entry); setView('seller') }} openListing={item => { setMarketEntry(item); setMarketMode('recent'); setView('market') }} />
+  }, [view, marketEntry, marketMode, sellerEntry])
   const showProductFooter = view !== 'welcome' && view !== 'home' && view !== 'admin' && view !== 'showroom'
 
   return (
