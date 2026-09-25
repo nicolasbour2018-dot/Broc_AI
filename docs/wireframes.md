@@ -6,8 +6,8 @@ Ces maquettes très grossières couvrent le périmètre de l’étape 0 du MVP. 
 
 - Gabarit intrinsèque mobile : `390 × 844`, lisible après mise à l’échelle à `320 px` et à `390 px` de large.
 - En-tête compact, contenu sur une colonne et cartes empilées.
-- Action primaire sombre, pleine largeur, placée près du bas, sauf à l’accueil où les trois cartes de parcours sont les actions principales ; les actions secondaires restent claires et en flux.
-- Boutons et zones d’action dessinés à `52 px` de haut (donc au-dessus de la cible tactile de `44 px`).
+- Action primaire sombre, pleine largeur, placée près du bas, sauf à l’accueil où le parcours principal dépend du stand mémorisé ; les actions secondaires restent claires et en flux.
+- Boutons et zones d’action principaux dessinés à `52 px` de haut ; les accès secondaires de l’accueil gardent une cible tactile d’au moins `44 px`.
 - Les états IA sont des contenus dans le flux, jamais un blocage visuel de l’accès au mini-marché. Les formulations d’attente sont prudentes et arrondies.
 - Les mots et données d’exemple sont illustratifs. En particulier, une analyse IA est indiquée comme telle et reste incertaine.
 
@@ -35,11 +35,12 @@ Ces maquettes très grossières couvrent le périmètre de l’étape 0 du MVP. 
 
 ### Accueil
 
-L’accueil présente les parcours `Je vends`, `Je recherche`, `J’analyse` et `FunLab` dans quatre cartes, puis un bloc d’annonces dont le contenu dépend du profil. Chaque carte est une cible complète. La direction visuelle de référence est [maquette_prototype_V2.png](./assets/maquette_prototype_V2.png) ; les éléments de la maquette sans donnée réelle derrière (favoris notamment) ne sont pas affichés.
+L’accueil utilise le stand confirmé sur cet appareil pour choisir sa hiérarchie. Sans stand, `Voir les objets` est la grande entrée, suivie des dernières annonces, de `J’analyse`, puis des accès discrets à `FunLab` et `Je vends`. Avec un stand confirmé, `Ajouter un objet` ouvre directement la prise de photo, puis viennent `Mes annonces`, les accès au marché et à l’analyse, et enfin `FunLab`. La direction visuelle de référence reste [maquette_prototype_V2.png](./assets/maquette_prototype_V2.png) ; les éléments sans donnée réelle derrière (favoris notamment) ne sont pas affichés. Le SVG WF-01 illustre l’ancienne disposition et ne fixe plus l’ordre des actions.
 
 | | Visiteur | Vendeur ayant confirmé son onboarding |
 | --- | --- | --- |
 | Pastille `Stand N` | absente | visible, ouvre son stand |
+| Action principale | `Voir les objets` ouvre le mini-marché | `Ajouter un objet` ouvre la prise de photo |
 | Bloc d’annonces | `Dernières annonces` : 5 annonces actives les plus récentes ; bloc masqué tant qu’aucune annonce n’existe | `Mes annonces` : 5 annonces, vues décroissantes puis plus récentes ; actives avant vendues |
 | Toucher une ligne | fiche de l’annonce sur le mini-marché | son stand |
 | Ligne de statistiques | icône boutique et `Stand N` | nombre de vues, `0` compris |

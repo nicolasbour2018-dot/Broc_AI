@@ -244,7 +244,6 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .journey-seller { --journey-accent: var(--broc-seller); }
 .journey-market { --journey-accent: var(--broc-market); }
 .journey-assistant { --journey-accent: var(--broc-assistant); }
-.journey-fun { --journey-accent: var(--broc-fun); }
 .view-seller { --broc-focus: var(--broc-seller); }
 .view-market { --broc-focus: var(--broc-market); }
 .view-assistant { --broc-focus: var(--broc-assistant); }
@@ -417,6 +416,8 @@ textarea { min-height: 108px; resize: vertical; }
 .stand-entry:hover { background: #e5f0fb; }
 .journey-section { margin: 0; }
 .journey-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(10px, 2vw, 18px); margin: 0; }
+.journey-grid.home-primary-grid, .journey-grid.home-followup-grid.single { grid-template-columns: minmax(0, 1fr); }
+.home-followup { margin-top: clamp(18px, 4vw, 32px); }
 .journey-card {
   position: relative;
   isolation: isolate;
@@ -444,7 +445,11 @@ textarea { min-height: 108px; resize: vertical; }
 .journey-seller { --journey-accent: var(--broc-seller); --journey-bg: #f0f5f1; background: radial-gradient(circle at 76% 70%, rgba(170,186,162,.2), transparent 44%), #f0f5f1; }
 .journey-market { --journey-accent: var(--broc-market); --journey-bg: #eef5fc; background: radial-gradient(circle at 76% 70%, rgba(156,188,220,.22), transparent 44%), #eef5fc; }
 .journey-assistant { --journey-accent: var(--broc-assistant); --journey-bg: #fcf2ec; background: radial-gradient(circle at 76% 70%, rgba(232,187,166,.18), transparent 44%), #fcf2ec; }
-.journey-fun { --journey-accent: var(--broc-fun); --journey-bg: #f5f0fa; background: radial-gradient(circle at 76% 70%, rgba(188,171,211,.18), transparent 44%), #f5f0fa; }
+.home-featured-card { min-height: 176px; aspect-ratio: auto; }
+.home-featured-card .journey-copy strong { font-size: clamp(1.5rem, 5vw, 2.1rem); }
+.home-featured-card .journey-illustration { width: 40%; opacity: .32; }
+.home-followup-grid:not(.single) .journey-card { min-height: 176px; aspect-ratio: auto; }
+.home-followup-grid.single .journey-card { min-height: 136px; aspect-ratio: auto; }
 .journey-card .journey-icon {
   position: relative;
   z-index: 2;
@@ -466,6 +471,11 @@ textarea { min-height: 108px; resize: vertical; }
 .journey-arrow { position: absolute; z-index: 3; top: 15px; right: 15px; display: grid; width: 40px; height: 40px; place-items: center; color: var(--journey-accent); }
 .home-chevron { width: 19px; height: 19px; }
 .journey-illustration { position: absolute; z-index: 1; right: -3px; bottom: -5px; width: 53%; height: 88%; object-fit: contain; object-position: right bottom; opacity: .24; pointer-events: none; }
+.home-secondary-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.home-secondary-actions button { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--broc-border); border-radius: 999px; background: #fff; color: var(--broc-ink-soft); font-family: var(--font-body); font-weight: 700; }
+.home-secondary-actions button:hover { background: var(--broc-surface-soft); }
+.home-secondary-actions button:focus-visible { outline: 3px solid var(--broc-market); outline-offset: 2px; }
+.home-secondary-actions .home-chevron { width: 15px; height: 15px; }
 .home-listings { margin-top: clamp(18px, 4vw, 32px); padding: 13px clamp(13px, 3.5vw, 22px) 3px; overflow: hidden; border: 1px solid var(--broc-border); border-radius: 22px; background: #fff; box-shadow: 0 5px 20px rgba(33, 43, 65, .025); }
 .home-listings-heading { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid #eeefef; }
 .home-listings-heading > div { display: flex; align-items: center; gap: 10px; min-width: 0; }
