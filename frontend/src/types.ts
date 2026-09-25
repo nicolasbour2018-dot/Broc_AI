@@ -30,6 +30,11 @@ export interface Listing {
   view_count?: number | null
 }
 
+export interface ListingCategoryCounts {
+  total: number
+  categories: { category: ListingCategory; count: number }[]
+}
+
 export interface ListingDraft {
   image_key: string
   title: string
